@@ -1,0 +1,142 @@
+.page {
+  min-height: 100vh;
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: var(--space-3xl) var(--space-lg);
+  text-align: center;
+  background:
+    radial-gradient(ellipse at center, rgba(0, 255, 163, 0.05) 0%, transparent 60%);
+}
+
+.heroContent {
+  max-width: 700px;
+}
+
+.title {
+  font-size: 5rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  margin-bottom: var(--space-md);
+}
+
+.titleAccent {
+  color: var(--accent-primary);
+  text-shadow: 0 0 40px rgba(0, 255, 163, 0.6);
+}
+
+.subtitle {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  color: var(--text-muted);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-lg);
+}
+
+.tagline {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xl);
+}
+
+.heroCta {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: center;
+}
+
+.section {
+  padding: var(--space-3xl) 0;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-xl);
+}
+
+.viewAll {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.viewAll:hover {
+  color: var(--accent-primary);
+}
+
+.dropGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-lg);
+}
+
+@media (max-width: 1024px) {
+  .dropGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .dropGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .title {
+    font-size: 3rem;
+  }
+
+  .heroCta {
+    flex-direction: column;
+  }
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-lg);
+}
+
+@media (max-width: 1024px) {
+  .steps {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .steps {
+    grid-template-columns: 1fr;
+  }
+}
+
+.step {
+  padding: var(--space-xl);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.stepNumber {
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--accent-primary);
+  margin-bottom: var(--space-md);
+  text-shadow: 0 0 20px rgba(0, 255, 163, 0.4);
+}
+
+.step h3 {
+  font-size: 1rem;
+  margin-bottom: var(--space-sm);
+}
+
+.step p {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}

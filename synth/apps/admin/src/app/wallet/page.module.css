@@ -1,0 +1,10 @@
+.page {
+  padding: var(--space-3xl) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.description {
+  color: var(--text-secondary);
+}

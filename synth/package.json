@@ -1,0 +1,14 @@
+{
+  "name": "synth",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "dev:web": "turbo dev --filter=web",
+    "dev:admin": "turbo dev --filter=admin"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0"
+  }
+}

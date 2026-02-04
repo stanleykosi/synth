@@ -1,0 +1,23 @@
+[
+  {
+    "id": "trend-1",
+    "source": "Twitter",
+    "summary": "#basedvibes momentum accelerating among Base builders and tool makers.",
+    "score": 8.7,
+    "capturedAt": "2024-02-03T09:30:00Z"
+  },
+  {
+    "id": "trend-2",
+    "source": "Farcaster",
+    "summary": "Onchain art conversations spiking in /base, led by generative cityscape posts.",
+    "score": 7.9,
+    "capturedAt": "2024-02-02T21:10:00Z"
+  },
+  {
+    "id": "trend-3",
+    "source": "Onchain",
+    "summary": "Base swap volume up 12% week-over-week, signaling demand for lightweight analytics.",
+    "score": 7.4,
+    "capturedAt": "2024-02-01T18:45:00Z"
+  }
+]
