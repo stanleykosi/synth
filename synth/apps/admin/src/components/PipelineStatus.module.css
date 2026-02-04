@@ -1,0 +1,36 @@
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  font-size: 0.9rem;
+}
+
+.label {
+  color: var(--text-muted);
+}
+
+.value {
+  font-weight: 600;
+}
+
+.error {
+  color: var(--accent-tertiary);
+}
+
+.errorDetail {
+  color: var(--accent-tertiary);
+  font-size: 0.85rem;
+}
+
+.loading {
+  color: var(--text-muted);
+}

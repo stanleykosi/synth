@@ -1,27 +1,29 @@
-import fs from 'fs/promises';
-import path from 'path';
 import { Metrics } from '@/components/Metrics';
 import { DropCard } from '@/components/DropCard';
 import { TrendFeed } from '@/components/TrendFeed';
-import type { Drop } from '@/lib/api';
+import type { Drop, Metrics as MetricsPayload } from '@/lib/api';
+import { fetchDrops, fetchMetrics } from '@/lib/api';
 import styles from './page.module.css';
 
 async function getDrops(): Promise<Drop[]> {
   try {
-    const data = await fs.readFile(path.join(process.cwd(), 'data', 'drops.json'), 'utf-8');
-    return JSON.parse(data);
+    return await fetchDrops();
   } catch {
     return [];
   }
 }
 
-async function getMetrics() {
-  return {
-    totalDrops: 12,
-    totalContracts: 15,
-    totalGasSpent: '0.042',
-    suggestionsPending: 7,
-  };
+async function getMetrics(): Promise<MetricsPayload> {
+  try {
+    return await fetchMetrics();
+  } catch {
+    return {
+      totalDrops: 0,
+      contractsByType: { token: 0, nft: 0, dapp: 0, contract: 0 },
+      suggestionsReceived: 0,
+      suggestionsBuilt: 0
+    };
+  }
 }
 
 export default async function HomePage() {

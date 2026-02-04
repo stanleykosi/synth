@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const DROPS_FILE = path.join(process.cwd(), 'data', 'drops.json');
+const AGENT_API_URL = process.env.AGENT_API_URL;
 
 interface DropPayload {
   name: string;
@@ -33,6 +34,14 @@ function isValidDrop(payload: unknown): payload is DropPayload {
 }
 
 export async function GET() {
+  if (AGENT_API_URL) {
+    const res = await fetch(`${AGENT_API_URL}/api/drops`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      return NextResponse.json(data);
+    }
+  }
+
   try {
     const data = await fs.readFile(DROPS_FILE, 'utf-8');
     const drops = JSON.parse(data);
@@ -59,6 +68,21 @@ export async function POST(request: Request) {
     const drop = await request.json();
     if (!isValidDrop(drop)) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    }
+
+    if (AGENT_API_URL) {
+      const res = await fetch(`${AGENT_API_URL}/api/drops`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': process.env.ADMIN_SECRET ?? ''
+        },
+        body: JSON.stringify(drop)
+      });
+      if (!res.ok) {
+        return NextResponse.json({ error: 'Failed to save drop' }, { status: 502 });
+      }
+      return NextResponse.json({ success: true });
     }
 
     let drops: DropPayload[] = [];

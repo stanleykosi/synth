@@ -16,3 +16,6 @@ Collect and score trend signals from Twitter, Farcaster, Discord, and onchain ac
 
 ## Output
 A ranked list of signals with reasoning and source notes.
+
+## Execution
+Run the agent cycle or trigger it via the control API to populate `memory/trends.md` and `memory/trends.json`.

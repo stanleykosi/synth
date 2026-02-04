@@ -190,4 +190,3 @@ A futuristic public dashboard showcases all deployments and accepts community su
 - **Initial budget:** $10 ETH on Base + hosting
 - **Discord:** Dedicated server with #suggestions + #launches
 - **Admin panel:** Full oversight without blocking autonomy
-

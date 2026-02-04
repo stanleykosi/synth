@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "forge-std/Test.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "../src/SynthSuggestions.sol";
+import {Test} from "forge-std/Test.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {SynthSuggestions} from "../src/SynthSuggestions.sol";
 
 contract SynthSuggestionsTest is Test {
     SynthSuggestions private suggestions;

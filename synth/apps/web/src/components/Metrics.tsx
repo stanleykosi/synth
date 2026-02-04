@@ -2,17 +2,18 @@ import styles from './Metrics.module.css';
 
 interface MetricsData {
   totalDrops: number;
-  totalContracts: number;
-  totalGasSpent: string;
-  suggestionsPending: number;
+  contractsByType: Record<'token' | 'nft' | 'dapp' | 'contract', number>;
+  suggestionsReceived: number;
+  suggestionsBuilt: number;
 }
 
 export function Metrics({ data }: { data: MetricsData }) {
+  const totalContracts = Object.values(data.contractsByType).reduce((sum, value) => sum + value, 0);
   const metrics = [
     { label: 'Total Drops', value: data.totalDrops, suffix: '' },
-    { label: 'Contracts Deployed', value: data.totalContracts, suffix: '' },
-    { label: 'Gas Spent', value: data.totalGasSpent, suffix: ' ETH' },
-    { label: 'Pending Signals', value: data.suggestionsPending, suffix: '' },
+    { label: 'Contracts Deployed', value: totalContracts, suffix: '' },
+    { label: 'Suggestions Received', value: data.suggestionsReceived, suffix: '' },
+    { label: 'Suggestions Built', value: data.suggestionsBuilt, suffix: '' },
   ];
 
   return (

@@ -1,6 +1,8 @@
 import { LogViewer } from '@/components/LogViewer';
 import { WalletStatus } from '@/components/WalletStatus';
 import { ControlPanel } from '@/components/ControlPanel';
+import { PipelineStatus } from '@/components/PipelineStatus';
+import { MetricsPanel } from '@/components/MetricsPanel';
 import styles from './page.module.css';
 
 export default function AdminDashboard() {
@@ -18,7 +20,17 @@ export default function AdminDashboard() {
           <h2>Controls</h2>
           <ControlPanel />
         </section>
+
+        <section className={styles.section}>
+          <h2>Pipeline Status</h2>
+          <PipelineStatus />
+        </section>
       </div>
+
+      <section className={styles.section}>
+        <h2>Metrics</h2>
+        <MetricsPanel />
+      </section>
 
       <section className={styles.section}>
         <h2>Decision Logs</h2>

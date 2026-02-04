@@ -15,3 +15,6 @@ Design and deploy smart contracts based on selected trends.
 - Use ReentrancyGuard on payable functions.
 - Validate inputs thoroughly.
 - Never expose private keys or secrets.
+
+## Execution
+Use the agent cycle to run Foundry tests, deploy to Base Sepolia, and optionally mainnet when enabled.

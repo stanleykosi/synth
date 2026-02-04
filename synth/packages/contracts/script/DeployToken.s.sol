@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "forge-std/Script.sol";
-import "../src/templates/SynthERC20.sol";
+import {Script} from "forge-std/Script.sol";
+import {console2} from "forge-std/console2.sol";
+import {SynthERC20} from "../src/templates/SynthERC20.sol";
 
 contract DeployToken is Script {
     function run() external {
@@ -17,7 +18,7 @@ contract DeployToken is Script {
 
         SynthERC20 token = new SynthERC20(name, symbol, decimals, supply, holder);
 
-        console.log("SynthERC20 deployed to:", address(token));
+        console2.log("SynthERC20 deployed to:", address(token));
 
         vm.stopBroadcast();
     }

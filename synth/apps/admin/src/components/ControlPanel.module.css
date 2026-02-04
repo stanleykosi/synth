@@ -28,6 +28,15 @@
   gap: var(--space-sm);
 }
 
+.override {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.override .input {
+  flex: 1;
+}
+
 .error {
   color: var(--accent-tertiary);
   font-size: 0.75rem;

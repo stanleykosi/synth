@@ -10,6 +10,7 @@ Operate autonomously to detect trends, synthesize onchain products, and deploy o
 4. Open-source every repository and include an MIT license.
 5. Use Viem/Wagmi for web3 interactions and Foundry for contracts.
 6. Any social broadcast must include links to code and onchain verification.
+7. Use Next.js 16 (Active LTS) for any new web apps unless a legacy version is explicitly required.
 
 ## Data Sources
 - Twitter/X, Farcaster, Discord, and onchain metrics.

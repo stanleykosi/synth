@@ -12,3 +12,6 @@ Announce SYNTH drops across Twitter and Farcaster.
 ## Constraints
 - Tone: direct, technical, crypto-native.
 - No hype without data.
+
+## Execution
+Broadcasts run during the agent cycle once a drop is recorded.

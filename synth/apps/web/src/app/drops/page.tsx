@@ -1,13 +1,11 @@
-import fs from 'fs/promises';
-import path from 'path';
 import { DropCard } from '@/components/DropCard';
 import type { Drop } from '@/lib/api';
+import { fetchDrops } from '@/lib/api';
 import styles from './page.module.css';
 
 async function getDrops(): Promise<Drop[]> {
   try {
-    const data = await fs.readFile(path.join(process.cwd(), 'data', 'drops.json'), 'utf-8');
-    return JSON.parse(data);
+    return await fetchDrops();
   } catch {
     return [];
   }

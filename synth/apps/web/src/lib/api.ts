@@ -18,7 +18,15 @@ export interface TrendItem {
   capturedAt: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
+export interface Metrics {
+  totalDrops: number;
+  contractsByType: Record<'token' | 'nft' | 'dapp' | 'contract', number>;
+  suggestionsReceived: number;
+  suggestionsBuilt: number;
+}
+
+const SERVER_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.SITE_URL || 'https://synthclaw.xyz';
+const API_BASE = typeof window === 'undefined' ? SERVER_BASE : (process.env.NEXT_PUBLIC_API_URL ?? '');
 
 async function handle<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -35,4 +43,9 @@ export async function fetchDrops(): Promise<Drop[]> {
 export async function fetchTrends(): Promise<TrendItem[]> {
   const res = await fetch(`${API_BASE}/api/trends`, { cache: 'no-store' });
   return handle<TrendItem[]>(res);
+}
+
+export async function fetchMetrics(): Promise<Metrics> {
+  const res = await fetch(`${API_BASE}/api/metrics`, { cache: 'no-store' });
+  return handle<Metrics>(res);
 }

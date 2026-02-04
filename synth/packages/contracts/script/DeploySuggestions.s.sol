@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "forge-std/Script.sol";
-import "../src/SynthSuggestions.sol";
+import {Script} from "forge-std/Script.sol";
+import {console2} from "forge-std/console2.sol";
+import {SynthSuggestions} from "../src/SynthSuggestions.sol";
 
 contract DeploySuggestions is Script {
     function run() external {
@@ -12,7 +13,7 @@ contract DeploySuggestions is Script {
 
         SynthSuggestions suggestions = new SynthSuggestions();
 
-        console.log("SynthSuggestions deployed to:", address(suggestions));
+        console2.log("SynthSuggestions deployed to:", address(suggestions));
 
         vm.stopBroadcast();
     }

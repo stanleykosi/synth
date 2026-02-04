@@ -1,16 +1,15 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-
-const LOGS_FILE = path.join(process.cwd(), 'data', 'logs.json');
 
 export async function GET() {
-  try {
-    const data = await fs.readFile(LOGS_FILE, 'utf-8');
-    const logs = JSON.parse(data);
-    return NextResponse.json(logs);
-  } catch {
-    // Rate limiting should be applied at the edge for admin endpoints.
-    return NextResponse.json([]);
+  const apiUrl = process.env.AGENT_API_URL;
+  if (apiUrl) {
+    const res = await fetch(`${apiUrl}/api/logs`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      return NextResponse.json(data);
+    }
   }
+
+  // Rate limiting should be applied at the edge for admin endpoints.
+  return NextResponse.json([]);
 }

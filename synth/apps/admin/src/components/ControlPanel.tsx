@@ -1,11 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import styles from './ControlPanel.module.css';
 
 export function ControlPanel() {
   const [status, setStatus] = useState<'active' | 'paused'>('active');
   const [error, setError] = useState<string | null>(null);
+  const [overrideId, setOverrideId] = useState('');
+
+  useEffect(() => {
+    fetch('/api/status')
+      .then((res) => res.ok ? res.json() : Promise.reject(new Error('Failed to load status')))
+      .then((data) => setStatus(data.paused ? 'paused' : 'active'))
+      .catch(() => null);
+  }, []);
 
   const handlePause = async () => {
     setError(null);
@@ -35,6 +43,37 @@ export function ControlPanel() {
     setStatus('active');
   };
 
+  const handleRun = async () => {
+    setError(null);
+    const res = await fetch('/api/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'run' }),
+    });
+    if (!res.ok) {
+      setError('Failed to start run');
+      return;
+    }
+  };
+
+  const handleOverride = async () => {
+    if (!overrideId.trim()) {
+      setError('Enter a signal id to override');
+      return;
+    }
+    setError(null);
+    const res = await fetch('/api/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'override', signalId: overrideId.trim() }),
+    });
+    if (!res.ok) {
+      setError('Failed to set override');
+      return;
+    }
+    setOverrideId('');
+  };
+
   return (
     <div className={styles.panel}>
       <div className={styles.status}>
@@ -53,6 +92,21 @@ export function ControlPanel() {
             Resume Agent
           </button>
         )}
+        <button onClick={handleRun} className="btn btn-secondary">
+          Run Now
+        </button>
+      </div>
+
+      <div className={styles.override}>
+        <input
+          value={overrideId}
+          onChange={(event) => setOverrideId(event.target.value)}
+          placeholder="Override signal id"
+          className="input"
+        />
+        <button onClick={handleOverride} className="btn btn-secondary">
+          Override
+        </button>
       </div>
 
       {error && <div className={styles.error}>{error}</div>}

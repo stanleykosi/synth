@@ -12,3 +12,6 @@ Produce and deploy frontends for SYNTH drops when required.
 ## Quality
 - Mobile responsive.
 - No Tailwind or placeholder UI.
+
+## Execution
+The agent generates a drop repo from the built-in template and links it to Vercel.

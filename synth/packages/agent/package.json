@@ -1,0 +1,27 @@
+{
+  "name": "@synth/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "cycle": "tsx src/index.ts --mode=cycle",
+    "server": "tsx src/index.ts --mode=server",
+    "lint": "echo \"No lint configured for agent\""
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.1.0",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "node-cron": "^3.0.3",
+    "simple-git": "^3.25.0",
+    "twitter-api-v2": "^1.17.1",
+    "viem": "^2.23.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

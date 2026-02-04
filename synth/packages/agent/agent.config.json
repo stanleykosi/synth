@@ -1,0 +1,40 @@
+{
+  "twitter": {
+    "queries": [
+      "base chain",
+      "base l2",
+      "farcaster",
+      "onchain",
+      "crypto builder",
+      "token launch",
+      "nft mint"
+    ],
+    "maxResults": 25
+  },
+  "farcaster": {
+    "channels": ["base"],
+    "limit": 25
+  },
+  "discord": {
+    "channelIds": [],
+    "limit": 25
+  },
+  "dune": {
+    "queryIds": []
+  },
+  "scoring": {
+    "weights": {
+      "twitter": 1.0,
+      "farcaster": 1.0,
+      "discord": 0.7,
+      "onchain": 1.2,
+      "suggestion": 1.3
+    },
+    "engagementCap": 5000
+  },
+  "pipeline": {
+    "maxSignals": 50,
+    "dailyRunHourUTC": 9,
+    "autoDeployMainnet": false
+  }
+}

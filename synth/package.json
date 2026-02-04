@@ -1,6 +1,7 @@
 {
   "name": "synth",
   "private": true,
+  "packageManager": "pnpm@9.15.1",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "turbo dev",
