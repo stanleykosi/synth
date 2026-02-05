@@ -1,15 +1,37 @@
 {
   "twitter": {
+    "enabled": true,
+    "mode": "browser",
+    "browserProfile": "openclaw",
+    "browserTarget": "host",
     "queries": [
+      "base",
       "base chain",
       "base l2",
+      "coinbase base",
+      "base ecosystem",
+      "base season",
+      "base onchain",
+      "base bridge",
+      "base gas",
+      "aerodrome",
+      "aero token",
+      "dex on base",
+      "defi on base",
       "farcaster",
+      "warpcast",
+      "frames",
       "onchain",
-      "crypto builder",
+      "onchain summer",
       "token launch",
-      "nft mint"
+      "stealth launch",
+      "airdrop",
+      "points",
+      "memecoin",
+      "nft mint",
+      "contract deploy"
     ],
-    "maxResults": 25
+    "maxResults": 30
   },
   "farcaster": {
     "channels": ["base"],
@@ -20,7 +42,7 @@
     "limit": 25
   },
   "dune": {
-    "queryIds": []
+    "queryIds": [2839431, 3756241, 5133694]
   },
   "scoring": {
     "weights": {

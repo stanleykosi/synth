@@ -217,6 +217,8 @@ GITHUB_ORG=
 VERCEL_TOKEN=
 VERCEL_TEAM_ID=
 DUNE_API_KEY=
+OPENCLAW_GATEWAY_URL=http://127.0.0.1:18789
+OPENCLAW_GATEWAY_TOKEN=
 DISCORD_BOT_TOKEN=
 DISCORD_LAUNCH_CHANNEL_ID=
 BASESCAN_API_KEY=
@@ -231,17 +233,34 @@ SYNTH_ENABLE_SCHEDULER=true
 CORS_ORIGIN=https://synth.xyz
 ```
 
-Note: Twitter API keys are only needed for posting. Trend scraping can be done via OpenClaw browser automation without Twitter API keys.
+Note: Twitter API keys are only needed for posting. The Twitter signal source supports a browser mode, so your keys are not used for scraping when `twitter.mode` is set to `browser`.
 
 ### Step 4: Configure the agent targets
 
 Edit `synth/packages/agent/agent.config.json`:
 
-- Add Twitter keywords in `twitter.queries`.
+- For browser-based Twitter signals, set `twitter.enabled` to `true`.
+- For browser-based Twitter signals, set `twitter.mode` to `browser`.
+- For browser-based Twitter signals, keep `twitter.browserProfile` as `openclaw` (managed browser).
+- For browser-based Twitter signals, keep `twitter.browserTarget` as `host`.
+- For API-based Twitter signals, set `twitter.enabled` to `true`.
+- For API-based Twitter signals, set `twitter.mode` to `api`.
+- For API-based Twitter signals, add keywords in `twitter.queries`.
 - Add Farcaster channels in `farcaster.channels`.
 - Add Discord channel IDs in `discord.channelIds`.
 - Add Dune query IDs in `dune.queryIds`.
 - Keep `autoDeployMainnet` false until you are ready.
+
+### Step 4.1: Log in to X/Twitter in the OpenClaw browser (browser mode only)
+
+This is required for reliable scraping.
+
+```
+openclaw browser start
+openclaw browser open https://x.com
+```
+
+Log in manually in the OpenClaw-managed browser window. Do not enter credentials into any automated prompts.
 
 ### Step 5: Start the agent API
 

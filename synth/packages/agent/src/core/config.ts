@@ -3,6 +3,10 @@ import { resolveConfigPath } from '../utils/paths.js';
 
 export interface AgentConfig {
   twitter: {
+    enabled: boolean;
+    mode: 'api' | 'browser';
+    browserProfile: string;
+    browserTarget: 'host' | 'sandbox' | 'node';
     queries: string[];
     maxResults: number;
   };
@@ -15,7 +19,7 @@ export interface AgentConfig {
     limit: number;
   };
   dune: {
-    queryIds: string[];
+    queryIds: number[];
   };
   scoring: {
     weights: Record<string, number>;
@@ -30,6 +34,10 @@ export interface AgentConfig {
 
 const fallbackConfig: AgentConfig = {
   twitter: {
+    enabled: false,
+    mode: 'browser',
+    browserProfile: 'openclaw',
+    browserTarget: 'host',
     queries: ['base chain', 'base l2'],
     maxResults: 20
   },
@@ -42,7 +50,7 @@ const fallbackConfig: AgentConfig = {
     limit: 20
   },
   dune: {
-    queryIds: []
+    queryIds: [2834598, 3913969, 4670978]
   },
   scoring: {
     weights: {
