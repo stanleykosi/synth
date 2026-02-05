@@ -13,8 +13,8 @@ export async function ensureRepo(params: { name: string; description: string }):
   }
 
   const octokit = new Octokit({ auth: token });
-  const org = process.env.GITHUB_ORG;
-  const owner = org ?? (await octokit.users.getAuthenticated()).data.login;
+  const org = (process.env.GITHUB_ORG ?? '').trim();
+  const owner = org || (await octokit.users.getAuthenticated()).data.login;
 
   try {
     const existing = await octokit.repos.get({ owner, repo: params.name });
@@ -23,7 +23,7 @@ export async function ensureRepo(params: { name: string; description: string }):
       htmlUrl: existing.data.html_url,
       cloneUrl: existing.data.clone_url
     };
-  } catch {
+  } catch (error) {
     if (org) {
       const created = await octokit.repos.createInOrg({
         org,
@@ -39,16 +39,29 @@ export async function ensureRepo(params: { name: string; description: string }):
       };
     }
 
-    const created = await octokit.repos.createForAuthenticatedUser({
-      name: params.name,
-      description: params.description,
-      private: false
-    });
+    try {
+      const created = await octokit.repos.createForAuthenticatedUser({
+        name: params.name,
+        description: params.description,
+        private: false
+      });
 
-    return {
-      name: created.data.name,
-      htmlUrl: created.data.html_url,
-      cloneUrl: created.data.clone_url
-    };
+      return {
+        name: created.data.name,
+        htmlUrl: created.data.html_url,
+        cloneUrl: created.data.clone_url
+      };
+    } catch (createError) {
+      const status = (createError as { status?: number }).status;
+      if (status === 422) {
+        const existing = await octokit.repos.get({ owner, repo: params.name });
+        return {
+          name: existing.data.name,
+          htmlUrl: existing.data.html_url,
+          cloneUrl: existing.data.clone_url
+        };
+      }
+      throw createError;
+    }
   }
 }
