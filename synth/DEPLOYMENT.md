@@ -55,20 +55,26 @@ Add ETH on Base mainnet. Keep at least $10.
 
 You will need these values. Keep them safe.
 
-- `BASESCAN_API_KEY`
+Required for this setup:
+- `NEYNAR_API_KEY`
+- `GITHUB_TOKEN`
+- `VERCEL_TOKEN`
+- `ADMIN_SECRET`
+
+Required only if you want posting:
 - `TWITTER_API_KEY`
 - `TWITTER_API_SECRET`
 - `TWITTER_ACCESS_TOKEN`
 - `TWITTER_ACCESS_SECRET`
-- `NEYNAR_API_KEY`
 - `NEYNAR_SIGNER_UUID`
-- `GITHUB_TOKEN`
-- `GITHUB_ORG`
-- `VERCEL_TOKEN`
-- `VERCEL_TEAM_ID` (optional)
-- `DUNE_API_KEY` (optional)
 - `DISCORD_BOT_TOKEN`
 - `DISCORD_LAUNCH_CHANNEL_ID`
+
+Optional:
+- `BASESCAN_API_KEY` (only needed for contract verification)
+- `GITHUB_ORG` (only if you want repos created under an org; omit for personal accounts)
+- `VERCEL_TEAM_ID` (only for Vercel Team accounts)
+- `DUNE_API_KEY` (only if you want Dune data)
 
 ## Part 2: Deploy Web + Admin on Vercel
 
@@ -204,10 +210,6 @@ cp -r /home/synth/synth/packages/agent/* ~/.openclaw/workspace/
 Create `~/.openclaw/.env` and add:
 
 ```
-TWITTER_API_KEY=
-TWITTER_API_SECRET=
-TWITTER_ACCESS_TOKEN=
-TWITTER_ACCESS_SECRET=
 NEYNAR_API_KEY=
 NEYNAR_SIGNER_UUID=
 GITHUB_TOKEN=
@@ -228,6 +230,8 @@ ADMIN_SECRET=
 SYNTH_ENABLE_SCHEDULER=true
 CORS_ORIGIN=https://synth.xyz
 ```
+
+Note: Twitter API keys are only needed for posting. Trend scraping can be done via OpenClaw browser automation without Twitter API keys.
 
 ### Step 4: Configure the agent targets
 

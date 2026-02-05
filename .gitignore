@@ -1,0 +1,4 @@
+# Ignore PEM keys in repo root
+*.pem
+*.pem:Zone.Identifier
+*:Zone.Identifier
