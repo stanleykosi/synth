@@ -1,37 +1,38 @@
 {
   "twitter": {
-    "enabled": true,
+    "enabled": false,
     "mode": "browser",
     "browserProfile": "openclaw",
     "browserTarget": "host",
-    "queries": [
-      "base",
-      "base chain",
-      "base l2",
-      "coinbase base",
-      "base ecosystem",
-      "base season",
-      "base onchain",
-      "base bridge",
-      "base gas",
-      "aerodrome",
-      "aero token",
-      "dex on base",
-      "defi on base",
-      "farcaster",
-      "warpcast",
-      "frames",
-      "onchain",
-      "onchain summer",
-      "token launch",
-      "stealth launch",
-      "airdrop",
-      "points",
-      "memecoin",
-      "nft mint",
-      "contract deploy"
-    ],
+    "queries": [],
     "maxResults": 30
+  },
+  "web": {
+    "enabled": true,
+    "maxItems": 25,
+    "perSourceLimit": 6,
+    "sources": [
+      {
+        "name": "Base Mirror",
+        "url": "https://base.mirror.xyz/feed/atom",
+        "type": "atom"
+      },
+      {
+        "name": "Ethereum Blog",
+        "url": "https://blog.ethereum.org/feed.xml",
+        "type": "rss"
+      },
+      {
+        "name": "CoinDesk RSS",
+        "url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
+        "type": "rss"
+      },
+      {
+        "name": "Farcaster Base Channel",
+        "url": "https://feeds.fcstr.xyz/rss/channel?url=https://warpcast.com/~/channel/base",
+        "type": "rss"
+      }
+    ]
   },
   "farcaster": {
     "channels": ["base"],
@@ -42,11 +43,12 @@
     "limit": 25
   },
   "dune": {
-    "queryIds": [2839431, 3756241, 5133694]
+    "queryIds": [4107575, 4934347, 6309722]
   },
   "scoring": {
     "weights": {
-      "twitter": 1.0,
+      "twitter": 0.0,
+      "web": 1.1,
       "farcaster": 1.0,
       "discord": 0.7,
       "onchain": 1.2,

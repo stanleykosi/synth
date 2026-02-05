@@ -10,6 +10,16 @@ export interface AgentConfig {
     queries: string[];
     maxResults: number;
   };
+  web: {
+    enabled: boolean;
+    maxItems: number;
+    perSourceLimit: number;
+    sources: Array<{
+      name: string;
+      url: string;
+      type: 'rss' | 'atom';
+    }>;
+  };
   farcaster: {
     channels: string[];
     limit: number;
@@ -41,6 +51,14 @@ const fallbackConfig: AgentConfig = {
     queries: ['base chain', 'base l2'],
     maxResults: 20
   },
+  web: {
+    enabled: true,
+    maxItems: 25,
+    perSourceLimit: 6,
+    sources: [
+      { name: 'Base Mirror', url: 'https://base.mirror.xyz/feed/atom', type: 'atom' }
+    ]
+  },
   farcaster: {
     channels: ['base'],
     limit: 20
@@ -55,6 +73,7 @@ const fallbackConfig: AgentConfig = {
   scoring: {
     weights: {
       twitter: 1.0,
+      web: 1.0,
       farcaster: 1.0,
       discord: 0.7,
       onchain: 1.2,
@@ -74,6 +93,7 @@ function mergeConfig(base: AgentConfig, overrides: Partial<AgentConfig>): AgentC
     ...base,
     ...overrides,
     twitter: { ...base.twitter, ...overrides.twitter },
+    web: { ...base.web, ...overrides.web },
     farcaster: { ...base.farcaster, ...overrides.farcaster },
     discord: { ...base.discord, ...overrides.discord },
     dune: { ...base.dune, ...overrides.dune },

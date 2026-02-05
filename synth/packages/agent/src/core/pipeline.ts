@@ -6,6 +6,7 @@ import { loadDrops, loadState, saveDrops, saveState, appendMarkdown, memoryPaths
 import { log } from './logger.js';
 import type { DropRecord, TrendSignal, DropType } from './types.js';
 import { fetchTwitterSignals } from '../sources/twitter.js';
+import { fetchWebSignals } from '../sources/web.js';
 import { fetchFarcasterSignals } from '../sources/farcaster.js';
 import { fetchDiscordSignals } from '../sources/discord.js';
 import { fetchOnchainSignals } from '../sources/onchain.js';
@@ -91,8 +92,9 @@ export async function runDailyCycle(baseDir: string) {
     currentState = { ...currentState, currentPhase: 'signal-detection' };
     await saveState(baseDir, currentState);
 
-    const [twitter, farcaster, discord, onchain, suggestions] = await Promise.all([
+    const [twitter, web, farcaster, discord, onchain, suggestions] = await Promise.all([
       fetchTwitterSignals(config),
+      fetchWebSignals(config),
       fetchFarcasterSignals(config),
       fetchDiscordSignals(config),
       fetchOnchainSignals(config),
@@ -101,6 +103,7 @@ export async function runDailyCycle(baseDir: string) {
 
     const signals = finalizeScores([
       ...twitter,
+      ...web,
       ...farcaster,
       ...discord,
       ...onchain,

@@ -233,34 +233,23 @@ SYNTH_ENABLE_SCHEDULER=true
 CORS_ORIGIN=https://synth.xyz
 ```
 
-Note: Twitter API keys are only needed for posting. The Twitter signal source supports a browser mode, so your keys are not used for scraping when `twitter.mode` is set to `browser`.
+Note: Twitter API keys are only needed for posting. This setup runs without X/Twitter scraping by default and uses RSS/web sources instead.
 
 ### Step 4: Configure the agent targets
 
 Edit `synth/packages/agent/agent.config.json`:
 
-- For browser-based Twitter signals, set `twitter.enabled` to `true`.
-- For browser-based Twitter signals, set `twitter.mode` to `browser`.
-- For browser-based Twitter signals, keep `twitter.browserProfile` as `openclaw` (managed browser).
-- For browser-based Twitter signals, keep `twitter.browserTarget` as `host`.
-- For API-based Twitter signals, set `twitter.enabled` to `true`.
-- For API-based Twitter signals, set `twitter.mode` to `api`.
-- For API-based Twitter signals, add keywords in `twitter.queries`.
+- If you want X/Twitter signals later, set `twitter.enabled` to `true` and choose `twitter.mode` (`browser` or `api`).
+- If you do NOT want X/Twitter, keep `twitter.enabled` as `false` and leave `twitter.queries` empty.
+- Configure web/RSS sources in `web.sources` (Base, Ethereum blog, CoinDesk, Farcaster RSS are included by default).
 - Add Farcaster channels in `farcaster.channels`.
 - Add Discord channel IDs in `discord.channelIds`.
 - Add Dune query IDs in `dune.queryIds`.
 - Keep `autoDeployMainnet` false until you are ready.
 
-### Step 4.1: Log in to X/Twitter in the OpenClaw browser (browser mode only)
+### Step 4.1: (Optional) X/Twitter browser login
 
-This is required for reliable scraping.
-
-```
-openclaw browser start
-openclaw browser open https://x.com
-```
-
-Log in manually in the OpenClaw-managed browser window. Do not enter credentials into any automated prompts.
+Only required if you enable `twitter.enabled=true` with `twitter.mode="browser"`.
 
 ### Step 5: Start the agent API
 

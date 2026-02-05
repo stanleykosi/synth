@@ -1,4 +1,4 @@
-export type TrendSource = 'twitter' | 'farcaster' | 'discord' | 'onchain' | 'suggestion';
+export type TrendSource = 'twitter' | 'farcaster' | 'discord' | 'onchain' | 'suggestion' | 'web';
 
 export interface TrendSignal {
   id: string;
