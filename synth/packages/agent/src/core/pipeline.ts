@@ -227,7 +227,7 @@ export async function runDailyCycle(baseDir: string) {
       }
     }
 
-    const repoName = sanitizeRepoName(`${dropName}-${Date.now()}`);
+    const repoName = sanitizeRepoName(`${Date.now()}-${dropName}`);
     const repo = await ensureRepo({ name: repoName, description });
     const token = process.env.GITHUB_TOKEN ?? '';
     const tempDir = await prepareRepoTemplate({

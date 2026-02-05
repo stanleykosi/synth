@@ -64,5 +64,15 @@ export async function initAndPushRepo(tempDir: string, repoUrl: string, token: s
   const authedUrl = repoUrl.replace('https://', `https://x-access-token:${token}@`);
   await git.addRemote('origin', authedUrl);
   await git.branch(['-M', 'main']);
-  await git.push('origin', 'main');
+  try {
+    await git.push('origin', 'main');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('fetch first') || message.includes('non-fast-forward')) {
+      await git.fetch('origin', 'main');
+      await git.push(['--set-upstream', 'origin', 'main', '--force-with-lease']);
+    } else {
+      throw error;
+    }
+  }
 }
