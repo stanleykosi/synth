@@ -48,10 +48,10 @@
   "scoring": {
     "weights": {
       "twitter": 0.0,
-      "web": 1.1,
+      "web": 1.8,
       "farcaster": 1.0,
       "discord": 0.7,
-      "onchain": 1.2,
+      "onchain": 1.1,
       "suggestion": 1.3
     },
     "engagementCap": 5000

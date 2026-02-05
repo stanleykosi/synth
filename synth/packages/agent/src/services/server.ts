@@ -37,19 +37,33 @@ export function startServer(baseDir: string, config: AgentConfig) {
     legacyHeaders: false
   }));
 
-  app.get('/api/health', (_req, res) => {
+  const healthHandler = (_req: express.Request, res: express.Response) => {
     res.json({ status: 'ok' });
-  });
+  };
 
-  app.get('/api/trends', async (_req, res) => {
+  const trendsHandler = async (_req: express.Request, res: express.Response) => {
     const trends = await loadTrends(baseDir);
     res.json(trends);
-  });
+  };
 
-  app.get('/api/drops', async (_req, res) => {
+  const dropsHandler = async (_req: express.Request, res: express.Response) => {
     const drops = await loadDrops(baseDir);
     res.json(drops);
-  });
+  };
+
+  const statusHandler = async (_req: express.Request, res: express.Response) => {
+    const state = await loadState(baseDir);
+    res.json(state);
+  };
+
+  app.get('/health', healthHandler);
+  app.get('/api/health', healthHandler);
+
+  app.get('/trends', trendsHandler);
+  app.get('/api/trends', trendsHandler);
+
+  app.get('/drops', dropsHandler);
+  app.get('/api/drops', dropsHandler);
 
   app.post('/api/drops', async (req, res) => {
     if (!requireAdmin(req)) {
@@ -93,10 +107,8 @@ export function startServer(baseDir: string, config: AgentConfig) {
     res.json(logs);
   });
 
-  app.get('/api/status', async (_req, res) => {
-    const state = await loadState(baseDir);
-    res.json(state);
-  });
+  app.get('/status', statusHandler);
+  app.get('/api/status', statusHandler);
 
   app.post('/api/control', async (req, res) => {
     if (!requireAdmin(req)) {

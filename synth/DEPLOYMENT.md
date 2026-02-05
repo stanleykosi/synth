@@ -333,6 +333,16 @@ sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d agent.synth.xyz
 ```
 
+### Step 4: Verify the Agent API
+
+```
+curl http://127.0.0.1:8787/health
+curl http://127.0.0.1:8787/status
+curl http://127.0.0.1:8787/trends
+```
+
+If you prefer the versioned paths, use `/api/health`, `/api/status`, and `/api/trends`.
+
 ## Part 6: Connect Social Platforms
 
 ### Twitter/X
