@@ -260,6 +260,17 @@ pnpm --filter @synth/agent run server
 
 This starts the agent API on port `8787`.
 
+### Step 5.1: Connect GitHub to Vercel (required for auto webapp deploys)
+
+The agent creates a GitHub repo and then asks Vercel to link it. Vercel requires a GitHub login connection.
+
+1. Go to Vercel → **Account Settings** → **Git Integration**
+2. Connect your GitHub account
+3. Create/confirm a **Vercel Access Token**
+4. If you use an org, set `GITHUB_ORG`. If you use a personal account, leave it empty.
+
+If you skip this, the cycle still deploys contracts but webapp deployment will be skipped.
+
 ### Step 6: Make the agent start on boot
 
 ```

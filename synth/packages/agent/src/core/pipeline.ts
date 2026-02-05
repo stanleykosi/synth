@@ -44,6 +44,16 @@ function sanitizeRepoName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50);
 }
 
+function parseRepoOwner(htmlUrl: string): string | undefined {
+  try {
+    const url = new URL(htmlUrl);
+    const [owner] = url.pathname.split('/').filter(Boolean);
+    return owner;
+  } catch {
+    return undefined;
+  }
+}
+
 async function deployWithForge(options: {
   baseDir: string;
   script: string;
@@ -230,10 +240,24 @@ export async function runDailyCycle(baseDir: string) {
     });
     await initAndPushRepo(tempDir, repo.cloneUrl, token);
 
-    const vercelProject = await createVercelProject({
-      name: repoName,
-      repo: `${process.env.GITHUB_ORG}/${repoName}`
-    });
+    let vercelProjectUrl: string | undefined;
+    const repoOwner = process.env.GITHUB_ORG ?? parseRepoOwner(repo.htmlUrl);
+    if (repoOwner && process.env.VERCEL_TOKEN) {
+      try {
+        const vercelProject = await createVercelProject({
+          name: repoName,
+          repo: `${repoOwner}/${repoName}`
+        });
+        vercelProjectUrl = vercelProject.url;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await log(baseDir, 'error', message);
+      }
+    } else if (!repoOwner) {
+      await log(baseDir, 'warn', 'Skipping Vercel project: unable to determine GitHub repo owner.');
+    } else {
+      await log(baseDir, 'warn', 'Skipping Vercel project: missing VERCEL_TOKEN.');
+    }
 
     const dropRecord: DropRecord = {
       id: `${Date.now()}`,
@@ -242,7 +266,7 @@ export async function runDailyCycle(baseDir: string) {
       type: dropType,
       contractAddress: mainnetAddress,
       githubUrl: repo.htmlUrl,
-      webappUrl: vercelProject.url,
+      webappUrl: vercelProjectUrl,
       deployedAt: nowIso(),
       trend: topSignal.summary,
       status: config.pipeline.autoDeployMainnet ? 'mainnet' : 'testnet'
