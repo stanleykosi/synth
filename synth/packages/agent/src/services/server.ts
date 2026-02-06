@@ -74,6 +74,7 @@ async function saveSkill(baseDir: string, name: string, content: string) {
 
 export function startServer(baseDir: string, config: AgentConfig) {
   const app = express();
+  app.set('trust proxy', 1);
   app.use(express.json({ limit: '1mb' }));
 
   app.use((req, res, next) => {
