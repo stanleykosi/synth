@@ -131,14 +131,28 @@ export async function runDailyCycle(baseDir: string) {
       ...suggestions
     ]);
 
+    const suggestionSignals = signals.filter((signal) => signal.source === 'suggestion');
+    const otherSignals = signals.filter((signal) => signal.source !== 'suggestion');
+
+    const maxSignals = Math.max(1, config.pipeline.maxSignals);
+    const cap = Math.max(1, maxSignals - suggestionSignals.length);
+
     const deduped: TrendSignal[] = [];
     const seen = new Set<string>();
-    for (const signal of signals) {
+
+    for (const signal of otherSignals) {
       const key = signal.summary.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
       deduped.push(signal);
-      if (deduped.length >= config.pipeline.maxSignals) break;
+      if (deduped.length >= cap) break;
+    }
+
+    for (const signal of suggestionSignals) {
+      const key = signal.summary.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(signal);
     }
 
     const evidenceMap = await buildEvidence(deduped, config);
