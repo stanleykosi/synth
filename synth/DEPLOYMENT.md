@@ -246,8 +246,11 @@ GRAPH_QUERY=
 OPENCLAW_GATEWAY_URL=http://127.0.0.1:18789
 OPENCLAW_GATEWAY_TOKEN=
 OPENCLAW_WORKSPACE_DIR=/home/ubuntu/.openclaw/workspace
-SYNTH_LLM_MODEL=openrouter/anthropic/claude-3.5-haiku
-SYNTH_LLM_MAX_TOKENS=900
+OPENCLAW_CLI_PATH=openclaw
+OPENCLAW_AGENT_ID=synth
+OPENCLAW_AGENT_TIMEOUT=180
+SYNTH_LLM_MODEL=openrouter/moonshotai/kimi-k2.5
+SYNTH_LLM_MAX_TOKENS=200000
 DISCORD_BOT_TOKEN=
 DISCORD_LAUNCH_CHANNEL_ID=
 BASESCAN_API_KEY=
@@ -265,11 +268,13 @@ CORS_ORIGIN=https://synth.xyz
 
 Note: Twitter API keys are only needed for posting. This setup runs without X/Twitter scraping by default and uses RSS/web sources instead.
 
-Note: `OPENROUTER_API_KEY` powers the LLM decision gate and admin chat. OpenClaw expects model refs as `provider/model`, so `openrouter/anthropic/claude-3.5-haiku` is correct. Perplexity search can also use **the same OpenRouter key** (no separate Perplexity key needed).
+Note: `OPENROUTER_API_KEY` powers the LLM decision gate, admin chat, and fallback if the OpenClaw agent loop fails. OpenClaw expects model refs as `provider/model`, so `openrouter/moonshotai/kimi-k2.5` is correct. 
 
-### Step 3.1: Enable LLM Task in OpenClaw (Required)
+### Step 3.1: Configure OpenClaw Agent Loop + Native Skills
 
-OpenClaw needs the `llm-task` plugin for the decision gate and admin chat. Web search is optional.
+SYNTH now uses the **full OpenClaw agent loop** (not `llm-task`). This gives you native tool use, skill execution, and session memory.  
+OpenClaw loads skills in this order: `<workspace>/skills` → `~/.openclaw/skills` → bundled → `skills.load.extraDirs`.  
+We set the workspace to the SYNTH agent folder so your skills and memory are native and live.
 
 Edit `~/.openclaw/openclaw.json` and add:
 
@@ -282,25 +287,23 @@ Edit `~/.openclaw/openclaw.json` and add:
       "token": "REPLACE_WITH_RANDOM_TOKEN"
     }
   },
-  "plugins": {
-    "entries": {
-      "llm-task": {
-        "enabled": true,
-        "config": {
-          "allowedModels": ["openrouter/anthropic/claude-3.5-haiku"],
-          "maxTokens": 900,
-          "timeoutMs": 30000
-        }
-      }
-    }
-  },
   "agents": {
+    "defaults": {
+      "workspace": "/home/ubuntu/synth/synth/packages/agent",
+      "model": { "primary": "openrouter/moonshotai/kimi-k2.5" }
+    },
     "list": [
       {
-        "id": "main",
-        "tools": { "allow": ["llm-task", "web_search", "web_fetch"] }
+        "id": "synth",
+        "workspace": "/home/ubuntu/synth/synth/packages/agent",
+        "tools": { "allow": ["web_search", "web_fetch", "skills"] }
       }
     ]
+  },
+  "skills": {
+    "load": {
+      "extraDirs": ["/home/ubuntu/synth/synth/packages/agent/skills"]
+    }
   },
   "tools": {
     "web": {
@@ -332,6 +335,12 @@ OpenRouter auth (one time):
 
 ```
 openclaw models auth paste-token --provider openrouter
+```
+
+Test the agent loop:
+
+```
+openclaw agent --agent synth --message "Reply JSON {\"ok\":true}" --json
 ```
 
 ### Step 3.2 (Optional): Use Brave Instead of Perplexity
