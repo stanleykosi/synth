@@ -43,29 +43,6 @@
   margin-bottom: var(--space-md);
 }
 
-.trend {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  padding: var(--space-md);
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-lg);
-}
-
-.trendLabel {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.trendValue {
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-  color: var(--accent-primary);
-}
-
 .meta {
   display: flex;
   flex-wrap: wrap;

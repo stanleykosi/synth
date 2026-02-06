@@ -47,7 +47,11 @@ export function TrendFeed() {
         <div className={styles.empty}>No trends captured yet.</div>
       ) : (
         <div className={styles.list}>
-          {trends.map((trend) => (
+          {trends
+            .slice()
+            .sort((a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime())
+            .slice(0, 10)
+            .map((trend) => (
             <div key={trend.id} className={styles.item}>
               <div className={styles.meta}>
                 <span className={styles.source}>{trend.source}</span>

@@ -1,14 +1,21 @@
 import { NextResponse } from 'next/server';
 
 interface ControlPayload {
-  action: 'pause' | 'resume' | 'run' | 'override' | 'unlock';
+  action: 'pause' | 'resume' | 'run' | 'override' | 'unlock' | 'clear-drops' | 'reset-memory';
   signalId?: string;
 }
 
 function isValidPayload(payload: unknown): payload is ControlPayload {
   if (!payload || typeof payload !== 'object') return false;
   const data = payload as ControlPayload;
-  if (data.action === 'pause' || data.action === 'resume' || data.action === 'run' || data.action === 'unlock') {
+  if (
+    data.action === 'pause' ||
+    data.action === 'resume' ||
+    data.action === 'run' ||
+    data.action === 'unlock' ||
+    data.action === 'clear-drops' ||
+    data.action === 'reset-memory'
+  ) {
     return true;
   }
   if (data.action === 'override') {

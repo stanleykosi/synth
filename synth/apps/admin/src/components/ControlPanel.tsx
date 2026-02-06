@@ -69,6 +69,38 @@ export function ControlPanel() {
     }
   };
 
+  const handleClearDrops = async () => {
+    if (!confirm('Clear all drop records? This cannot be undone.')) {
+      return;
+    }
+    setError(null);
+    const res = await fetch('/api/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'clear-drops' }),
+    });
+    if (!res.ok) {
+      setError('Failed to clear drops');
+      return;
+    }
+  };
+
+  const handleResetMemory = async () => {
+    if (!confirm('Reset all memory (drops, trends, decisions, logs)?')) {
+      return;
+    }
+    setError(null);
+    const res = await fetch('/api/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reset-memory' }),
+    });
+    if (!res.ok) {
+      setError('Failed to reset memory');
+      return;
+    }
+  };
+
   const handleOverride = async () => {
     if (!overrideId.trim()) {
       setError('Enter a signal id to override');
@@ -110,6 +142,12 @@ export function ControlPanel() {
         </button>
         <button onClick={handleUnlock} className="btn btn-secondary">
           Unlock Run
+        </button>
+        <button onClick={handleClearDrops} className="btn btn-secondary">
+          Clear Drops
+        </button>
+        <button onClick={handleResetMemory} className="btn btn-secondary">
+          Reset Memory
         </button>
       </div>
 

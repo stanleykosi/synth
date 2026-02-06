@@ -43,11 +43,6 @@ export function DropCard({ drop }: { drop: Drop }) {
       <h3 className={styles.name}>{drop.name}</h3>
       <p className={styles.description}>{drop.description}</p>
 
-      <div className={styles.trend}>
-        <span className={styles.trendLabel}>Synthesized from:</span>
-        <span className={styles.trendValue}>{drop.trend}</span>
-      </div>
-
       <div className={styles.meta}>
         {drop.trendSource && <span className={styles.metaItem}>Source: {drop.trendSource}</span>}
         {drop.network && <span className={styles.metaItem}>{drop.network}</span>}

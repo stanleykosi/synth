@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import rateLimit from 'express-rate-limit';
 import type { AgentConfig } from '../core/config.js';
-import { loadDrops, loadLogs, loadState, loadTrends, saveState, saveDrops, loadDecisions, loadChat, saveChat } from '../core/memory.js';
+import { loadDrops, loadLogs, loadState, loadTrends, saveState, saveDrops, loadDecisions, loadChat, saveChat, saveLogs, saveTrends, saveDecisions } from '../core/memory.js';
 import { buildMetrics } from '../core/metrics.js';
 import { getSuggestionCount, getWalletStatus } from './chain.js';
 import { fetchGithubStarsTotal, fetchGithubRateLimit } from './github.js';
@@ -295,6 +295,26 @@ export function startServer(baseDir: string, config: AgentConfig) {
       };
       await saveState(baseDir, next);
       await log(baseDir, 'info', 'Run lock cleared via admin.');
+      return res.json(next);
+    }
+
+    if (action === 'clear-drops') {
+      await saveDrops(baseDir, []);
+      await log(baseDir, 'info', 'Drops cleared via admin.');
+      return res.json({ ok: true });
+    }
+
+    if (action === 'reset-memory') {
+      await Promise.all([
+        saveDrops(baseDir, []),
+        saveTrends(baseDir, []),
+        saveDecisions(baseDir, []),
+        saveLogs(baseDir, []),
+        saveChat(baseDir, [])
+      ]);
+      const next = { ...state, currentPhase: 'idle', lastResult: 'skipped', lastError: null };
+      await saveState(baseDir, next);
+      await log(baseDir, 'info', 'Memory reset via admin.');
       return res.json(next);
     }
 
