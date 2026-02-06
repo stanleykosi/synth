@@ -88,7 +88,8 @@ export async function generateDecision(input: {
     'Only choose a token drop when the signal is a strong newsworthy market event.',
     'If the signal is a user suggestion requesting a webapp/dashboard, choose dapp.',
     'Prioritize the most recent signals when all else is equal.',
-    input.prioritySignalId ? `Priority signal override: if ${input.prioritySignalId} is provided, you must select it.` : '',
+    'Synthesize across multiple signals; if several sources point to the same pattern, prefer that thesis.',
+    input.prioritySignalId ? `Priority signal: if ${input.prioritySignalId} is provided, you should strongly prefer it unless it is unsafe or incoherent.` : '',
     input.skills ? 'Use the skills guidance provided when relevant.' : '',
     input.context ? 'Follow the persona and operator preferences provided.' : ''
   ].join('\n');

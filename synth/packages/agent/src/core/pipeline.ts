@@ -276,29 +276,9 @@ export async function runDailyCycle(baseDir: string) {
         ? ranked.find((signal) => signal.id === preferredId) ?? defaultSignal
         : defaultSignal;
 
-    const stakeOverride = Boolean(prioritySuggestion);
-    if (stakeOverride && prioritySuggestion) {
-      topSignal = prioritySuggestion;
-      await log(baseDir, 'info', `Stake override active. Using ${prioritySuggestion.id}.`);
-    }
+    const effectiveDecision = decision;
 
-    const bestSuggestion = ranked.find((signal) => signal.source === 'suggestion');
-    const suggestionFallback = Boolean(
-      !overrideId &&
-      !stakeOverride &&
-      bestSuggestion &&
-      topSignal &&
-      topSignal.score < config.decision.minScore
-    );
-
-    if (suggestionFallback) {
-      await log(baseDir, 'info', `Suggestion fallback active. Using ${bestSuggestion?.id}.`);
-      topSignal = bestSuggestion ?? topSignal;
-    }
-
-    const effectiveDecision = suggestionFallback ? null : decision;
-
-    if (!stakeOverride && effectiveDecision && (!effectiveDecision.go || effectiveDecision.confidence < config.decision.minConfidence)) {
+    if (effectiveDecision && (!effectiveDecision.go || effectiveDecision.confidence < config.decision.minConfidence)) {
       await log(baseDir, 'info', `Decision opted out (confidence ${effectiveDecision.confidence}).`);
       currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'skipped' };
       await saveState(baseDir, currentState);
@@ -314,7 +294,7 @@ export async function runDailyCycle(baseDir: string) {
     currentState = overrideId ? { ...currentState, overrideSignalId: undefined } : currentState;
     currentState = { ...currentState, currentPhase: 'decision' };
     await saveState(baseDir, currentState);
-    if (!stakeOverride && !suggestionFallback && topSignal && topSignal.score < config.decision.minScore) {
+    if (!effectiveDecision && topSignal && topSignal.score < config.decision.minScore) {
       await log(baseDir, 'info', `Top signal score ${topSignal.score} below threshold ${config.decision.minScore}.`);
       currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'skipped' };
       await saveState(baseDir, currentState);
