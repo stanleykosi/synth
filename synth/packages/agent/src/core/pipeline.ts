@@ -28,6 +28,18 @@ function nowIso() {
 
 function pickDropType(signal: TrendSignal): DropType {
   const text = signal.summary.toLowerCase();
+  if (
+    text.includes('webapp') ||
+    text.includes('web app') ||
+    text.includes('dashboard') ||
+    text.includes('analytics') ||
+    text.includes('tracker') ||
+    text.includes('explorer') ||
+    text.includes('frontend') ||
+    text.includes('site')
+  ) {
+    return 'dapp';
+  }
   if (text.includes('nft') || text.includes('mint')) return 'nft';
   if (text.includes('token') || text.includes('meme')) return 'token';
   if (text.includes('dapp') || text.includes('app')) return 'dapp';
@@ -43,6 +55,27 @@ function generateDropName(signal: TrendSignal): string {
 function generateSymbol(name: string): string {
   const letters = name.replace(/[^A-Za-z]/g, '').toUpperCase();
   return (letters.slice(0, 5) || 'SYNTH').slice(0, 5);
+}
+
+function buildFallbackDecision(signal: TrendSignal, evidence: Record<string, unknown> | undefined) {
+  const name = generateDropName(signal);
+  return {
+    id: `decision-${Date.now()}`,
+    createdAt: nowIso(),
+    trendId: signal.id,
+    go: true,
+    dropType: pickDropType(signal),
+    name,
+    symbol: generateSymbol(name),
+    description: `Built from signal: ${signal.summary}`,
+    tagline: 'From noise to signal.',
+    hero: `Built from signal: ${signal.summary}`,
+    cta: 'Explore the drop',
+    features: ['Onchain-native', 'Open source', 'Shipped by SYNTH'],
+    rationale: 'Fallback decision generated because no LLM decision was available.',
+    confidence: 0.5,
+    evidence: Array.isArray(evidence) ? evidence : []
+  };
 }
 
 function sanitizeRepoName(name: string): string {
@@ -187,9 +220,6 @@ export async function runDailyCycle(baseDir: string) {
     });
 
     if (decision) {
-      const decisions = await loadDecisions(baseDir);
-      decisions.unshift(decision);
-      await saveDecisions(baseDir, decisions.slice(0, 50));
       await log(baseDir, 'info', `Decision: ${decision.name} (${decision.dropType}) confidence ${decision.confidence}`);
     }
 
@@ -240,17 +270,22 @@ export async function runDailyCycle(baseDir: string) {
       return;
     }
 
-    const dropType = effectiveDecision?.dropType ?? pickDropType(topSignal);
-    const dropName = effectiveDecision?.name ?? generateDropName(topSignal);
-    const description = effectiveDecision?.description ?? `Built from signal: ${topSignal.summary}`;
-    const tagline = effectiveDecision?.tagline ?? 'From noise to signal.';
-    const hero = effectiveDecision?.hero ?? description;
-    const cta = effectiveDecision?.cta ?? 'Explore the drop';
-    const features = effectiveDecision?.features ?? ['Onchain-native', 'Open source', 'Shipped by SYNTH'];
-    const symbol = effectiveDecision?.symbol ?? generateSymbol(dropName);
+    const fallbackDecision = effectiveDecision ?? buildFallbackDecision(topSignal, evidenceMap[topSignal.id]);
+    const decisions = await loadDecisions(baseDir);
+    decisions.unshift(fallbackDecision);
+    await saveDecisions(baseDir, decisions.slice(0, 50));
 
-    const rationaleSnippet = effectiveDecision?.rationale ? ` — ${effectiveDecision.rationale.slice(0, 180)}` : '';
-    const rationale = effectiveDecision?.rationale ?? 'SYNTH selected this drop based on the top scored signal.';
+    const dropType = fallbackDecision.dropType ?? pickDropType(topSignal);
+    const dropName = fallbackDecision.name ?? generateDropName(topSignal);
+    const description = fallbackDecision.description ?? `Built from signal: ${topSignal.summary}`;
+    const tagline = fallbackDecision.tagline ?? 'From noise to signal.';
+    const hero = fallbackDecision.hero ?? description;
+    const cta = fallbackDecision.cta ?? 'Explore the drop';
+    const features = fallbackDecision.features ?? ['Onchain-native', 'Open source', 'Shipped by SYNTH'];
+    const symbol = fallbackDecision.symbol ?? generateSymbol(dropName);
+
+    const rationaleSnippet = fallbackDecision.rationale ? ` — ${fallbackDecision.rationale.slice(0, 180)}` : '';
+    const rationale = fallbackDecision.rationale ?? 'SYNTH selected this drop based on the top scored signal.';
     await appendMarkdown(memoryPaths(baseDir).dropsMd, `- ${nowIso()} decision: ${dropType} for "${dropName}"${rationaleSnippet}`);
 
     currentState = { ...currentState, currentPhase: 'development' };
