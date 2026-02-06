@@ -1,5 +1,5 @@
 import { createPublicClient, http, formatEther } from 'viem';
-import { base } from 'viem/chains';
+import { base, baseSepolia } from 'viem/chains';
 import type { TrendSignal } from '../core/types.js';
 import type { AgentConfig } from '../core/config.js';
 import { scoreSignal } from '../core/scoring.js';
@@ -7,14 +7,18 @@ import { synthSuggestionsAbi } from '../abi/synthSuggestions.js';
 
 export async function fetchSuggestionSignals(config: AgentConfig): Promise<TrendSignal[]> {
   const address = process.env.SUGGESTIONS_ADDRESS || process.env.NEXT_PUBLIC_SUGGESTIONS_ADDRESS;
-  const rpcUrl = process.env.BASE_RPC || 'https://mainnet.base.org';
+  const chainId = Number(process.env.SUGGESTIONS_CHAIN_ID ?? process.env.NEXT_PUBLIC_CHAIN_ID ?? '8453');
+  const isSepolia = chainId === 84532;
+  const rpcUrl = isSepolia
+    ? (process.env.BASE_SEPOLIA_RPC || 'https://sepolia.base.org')
+    : (process.env.BASE_RPC || 'https://mainnet.base.org');
 
   if (!address) {
     return [];
   }
 
   const client = createPublicClient({
-    chain: base,
+    chain: isSepolia ? baseSepolia : base,
     transport: http(rpcUrl)
   });
 
