@@ -1,3 +1,8 @@
+---
+name: nft-builder
+description: Produce NFT launch content, mint details, and documentation.
+---
+
 # NFT Builder Skill
 
 ## Goal

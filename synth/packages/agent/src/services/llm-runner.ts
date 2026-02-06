@@ -27,6 +27,11 @@ function normalizeReply(payload: unknown): string {
   if (typeof payload === 'string') return payload;
   if (typeof payload === 'object') {
     const data = payload as Record<string, unknown>;
+    const result = data.result as Record<string, unknown> | undefined;
+    if (result && Array.isArray(result.payloads)) {
+      const payloadText = (result.payloads[0] as { text?: unknown } | undefined)?.text;
+      if (typeof payloadText === 'string') return payloadText;
+    }
     const reply = data.reply ?? data.message ?? data.output ?? data.text;
     if (typeof reply === 'string') return reply;
     if (reply && typeof reply === 'object') {
@@ -42,8 +47,10 @@ function buildAgentMessage(payload: LlmTaskPayload): string {
   const schemaBlock = payload.schema ? `\nJSON schema:\n${JSON.stringify(payload.schema)}` : '';
   return [
     payload.prompt,
+    'This is NOT a heartbeat run. Do NOT reply with HEARTBEAT_OK.',
     'You are running inside the OpenClaw agent loop with native skills enabled.',
     'Follow the JSON schema exactly and respond with JSON only (no prose).',
+    'Your response must start with "{" and end with "}".',
     schemaBlock,
     'Input:',
     JSON.stringify(payload.input)

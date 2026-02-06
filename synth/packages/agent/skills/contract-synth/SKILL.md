@@ -1,3 +1,8 @@
+---
+name: contract-synth
+description: Generate secure contracts, tests, and deployment scripts.
+---
+
 # Skill: Contract Synth
 
 ## Purpose

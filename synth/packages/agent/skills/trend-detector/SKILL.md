@@ -1,3 +1,8 @@
+---
+name: trend-detector
+description: Collect and score trend signals from social, onchain, and suggestions.
+---
+
 # Skill: Trend Detector
 
 ## Purpose

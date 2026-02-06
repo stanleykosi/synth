@@ -1,3 +1,8 @@
+---
+name: web-builder
+description: Generate and deploy Next.js webapps for SYNTH drops.
+---
+
 # Skill: Web Builder
 
 ## Purpose

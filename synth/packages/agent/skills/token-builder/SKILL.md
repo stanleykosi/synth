@@ -1,3 +1,8 @@
+---
+name: token-builder
+description: Produce token launch content, specs, and documentation.
+---
+
 # Token Builder Skill
 
 ## Goal

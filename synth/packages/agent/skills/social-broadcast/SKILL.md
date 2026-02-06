@@ -1,3 +1,8 @@
+---
+name: social-broadcast
+description: Draft and publish announcements for drops across social channels.
+---
+
 # Skill: Social Broadcast
 
 ## Purpose
