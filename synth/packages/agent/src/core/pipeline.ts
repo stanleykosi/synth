@@ -196,14 +196,29 @@ export async function runDailyCycle(baseDir: string) {
     const overrideId = state.overrideSignalId;
     const preferredId = decision?.trendId;
     const defaultSignal = ranked[0];
-    const topSignal = overrideId
+    let topSignal = overrideId
       ? ranked.find((signal) => signal.id === overrideId) ?? defaultSignal
       : preferredId
         ? ranked.find((signal) => signal.id === preferredId) ?? defaultSignal
         : defaultSignal;
 
-    if (decision && (!decision.go || decision.confidence < config.decision.minConfidence)) {
-      await log(baseDir, 'info', `Decision opted out (confidence ${decision.confidence}).`);
+    const bestSuggestion = ranked.find((signal) => signal.source === 'suggestion');
+    const suggestionFallback = Boolean(
+      !overrideId &&
+      bestSuggestion &&
+      topSignal &&
+      topSignal.score < config.decision.minScore
+    );
+
+    if (suggestionFallback) {
+      await log(baseDir, 'info', `Suggestion fallback active. Using ${bestSuggestion?.id}.`);
+      topSignal = bestSuggestion ?? topSignal;
+    }
+
+    const effectiveDecision = suggestionFallback ? null : decision;
+
+    if (effectiveDecision && (!effectiveDecision.go || effectiveDecision.confidence < config.decision.minConfidence)) {
+      await log(baseDir, 'info', `Decision opted out (confidence ${effectiveDecision.confidence}).`);
       currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'skipped' };
       await saveState(baseDir, currentState);
       return;
@@ -218,24 +233,24 @@ export async function runDailyCycle(baseDir: string) {
     currentState = overrideId ? { ...currentState, overrideSignalId: undefined } : currentState;
     currentState = { ...currentState, currentPhase: 'decision' };
     await saveState(baseDir, currentState);
-    if (topSignal && topSignal.score < config.decision.minScore) {
+    if (!suggestionFallback && topSignal && topSignal.score < config.decision.minScore) {
       await log(baseDir, 'info', `Top signal score ${topSignal.score} below threshold ${config.decision.minScore}.`);
       currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'skipped' };
       await saveState(baseDir, currentState);
       return;
     }
 
-    const dropType = decision?.dropType ?? pickDropType(topSignal);
-    const dropName = decision?.name ?? generateDropName(topSignal);
-    const description = decision?.description ?? `Built from signal: ${topSignal.summary}`;
-    const tagline = decision?.tagline ?? 'From noise to signal.';
-    const hero = decision?.hero ?? description;
-    const cta = decision?.cta ?? 'Explore the drop';
-    const features = decision?.features ?? ['Onchain-native', 'Open source', 'Shipped by SYNTH'];
-    const symbol = decision?.symbol ?? generateSymbol(dropName);
+    const dropType = effectiveDecision?.dropType ?? pickDropType(topSignal);
+    const dropName = effectiveDecision?.name ?? generateDropName(topSignal);
+    const description = effectiveDecision?.description ?? `Built from signal: ${topSignal.summary}`;
+    const tagline = effectiveDecision?.tagline ?? 'From noise to signal.';
+    const hero = effectiveDecision?.hero ?? description;
+    const cta = effectiveDecision?.cta ?? 'Explore the drop';
+    const features = effectiveDecision?.features ?? ['Onchain-native', 'Open source', 'Shipped by SYNTH'];
+    const symbol = effectiveDecision?.symbol ?? generateSymbol(dropName);
 
-    const rationaleSnippet = decision?.rationale ? ` — ${decision.rationale.slice(0, 180)}` : '';
-    const rationale = decision?.rationale ?? 'SYNTH selected this drop based on the top scored signal.';
+    const rationaleSnippet = effectiveDecision?.rationale ? ` — ${effectiveDecision.rationale.slice(0, 180)}` : '';
+    const rationale = effectiveDecision?.rationale ?? 'SYNTH selected this drop based on the top scored signal.';
     await appendMarkdown(memoryPaths(baseDir).dropsMd, `- ${nowIso()} decision: ${dropType} for "${dropName}"${rationaleSnippet}`);
 
     currentState = { ...currentState, currentPhase: 'development' };
