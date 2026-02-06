@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useChainId, useSwitchChain } from 'wagmi';
 import { parseEther } from 'viem';
 import { SUGGESTIONS_ABI, SUGGESTIONS_ADDRESS } from '@/lib/contracts';
 import styles from './SuggestionForm.module.css';
@@ -11,8 +11,13 @@ export function SuggestionForm() {
   const [stake, setStake] = useState('0.001');
 
   const { isConnected } = useAccount();
+  const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
   const { writeContract, data: hash, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const requiredChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? '8453');
+  const isCorrectChain = chainId === requiredChainId;
+  const isAddressValid = typeof SUGGESTIONS_ADDRESS === 'string' && SUGGESTIONS_ADDRESS.startsWith('0x') && SUGGESTIONS_ADDRESS.length === 42;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +32,7 @@ export function SuggestionForm() {
     });
   };
 
-  if (!SUGGESTIONS_ADDRESS) {
+  if (!isAddressValid) {
     return (
       <div className={styles.notConnected}>
         <p>Contract address not configured.</p>
@@ -39,6 +44,20 @@ export function SuggestionForm() {
     return (
       <div className={styles.notConnected}>
         <p>Connect your wallet to submit a suggestion</p>
+      </div>
+    );
+  }
+
+  if (!isCorrectChain) {
+    return (
+      <div className={styles.notConnected}>
+        <p>Wrong network. Switch to chain ID {requiredChainId} to submit a suggestion.</p>
+        <button
+          className="btn btn-primary mt-sm"
+          onClick={() => switchChain({ chainId: requiredChainId })}
+        >
+          Switch Network
+        </button>
       </div>
     );
   }
