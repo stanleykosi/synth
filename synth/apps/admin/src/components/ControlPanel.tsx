@@ -56,6 +56,19 @@ export function ControlPanel() {
     }
   };
 
+  const handleUnlock = async () => {
+    setError(null);
+    const res = await fetch('/api/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'unlock' }),
+    });
+    if (!res.ok) {
+      setError('Failed to unlock run');
+      return;
+    }
+  };
+
   const handleOverride = async () => {
     if (!overrideId.trim()) {
       setError('Enter a signal id to override');
@@ -94,6 +107,9 @@ export function ControlPanel() {
         )}
         <button onClick={handleRun} className="btn btn-secondary">
           Run Now
+        </button>
+        <button onClick={handleUnlock} className="btn btn-secondary">
+          Unlock Run
         </button>
       </div>
 

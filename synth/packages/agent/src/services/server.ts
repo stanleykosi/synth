@@ -286,6 +286,18 @@ export function startServer(baseDir: string, config: AgentConfig) {
       return res.json(next);
     }
 
+    if (action === 'unlock') {
+      const next = {
+        ...state,
+        currentPhase: 'idle',
+        lastResult: 'skipped',
+        lastError: null
+      };
+      await saveState(baseDir, next);
+      await log(baseDir, 'info', 'Run lock cleared via admin.');
+      return res.json(next);
+    }
+
     return res.status(400).json({ error: 'Unknown action' });
   });
 
