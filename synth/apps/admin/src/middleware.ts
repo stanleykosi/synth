@@ -10,6 +10,25 @@ function unauthorized() {
   });
 }
 
+function decodeBasicAuth(value: string): { user: string; pass: string } | null {
+  const base64 = value.slice(6).trim();
+  if (!base64) return null;
+  let decoded = '';
+  try {
+    if (typeof Buffer !== 'undefined') {
+      decoded = Buffer.from(base64, 'base64').toString('utf-8');
+    } else if (typeof atob === 'function') {
+      decoded = atob(base64);
+    }
+  } catch {
+    return null;
+  }
+  const separatorIndex = decoded.indexOf(':');
+  const user = separatorIndex >= 0 ? decoded.slice(0, separatorIndex) : decoded;
+  const pass = separatorIndex >= 0 ? decoded.slice(separatorIndex + 1) : '';
+  return { user, pass };
+}
+
 export function middleware(request: NextRequest) {
   const username = process.env.ADMIN_BASIC_USER?.trim();
   const password = process.env.ADMIN_BASIC_PASS?.trim();
@@ -18,23 +37,17 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const auth = request.headers.get('authorization') ?? '';
+  const auth = request.headers.get('authorization') ?? request.headers.get('Authorization') ?? '';
   if (!auth.toLowerCase().startsWith('basic ')) {
     return unauthorized();
   }
 
-  const base64 = auth.slice(6).trim();
-  let decoded = '';
-  try {
-    decoded = typeof atob === 'function' ? atob(base64) : '';
-  } catch {
+  const parsed = decodeBasicAuth(auth);
+  if (!parsed) {
     return unauthorized();
   }
-  const separatorIndex = decoded.indexOf(':');
-  const user = separatorIndex >= 0 ? decoded.slice(0, separatorIndex) : decoded;
-  const pass = separatorIndex >= 0 ? decoded.slice(separatorIndex + 1) : '';
 
-  if (user !== username || pass !== password) {
+  if (parsed.user !== username || parsed.pass !== password) {
     return unauthorized();
   }
 
@@ -42,5 +55,6 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)']
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  runtime: 'nodejs'
 };
