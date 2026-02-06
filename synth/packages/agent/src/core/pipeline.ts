@@ -62,6 +62,24 @@ function generateSymbol(name: string): string {
   return (letters.slice(0, 5) || 'SYNTH').slice(0, 5);
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function ensureReadmeLinks(readme: string, links: { label: string; url: string }[]) {
+  const cleanLinks = links.filter((link) => link.url && link.url.length > 0);
+  if (cleanLinks.length === 0) return readme;
+
+  const lines = cleanLinks.map((link) => `- ${link.label}: ${link.url}`);
+  if (!readme.includes('## Links')) {
+    return `${readme.trim()}\n\n## Links\n\n${lines.join('\n')}\n`;
+  }
+
+  const missing = lines.filter((line) => !readme.includes(line));
+  if (missing.length === 0) return readme;
+  return `${readme.trim()}\n${missing.join('\n')}\n`;
+}
+
 function applyRecencyBoost(signals: TrendSignal[], config: AgentConfig): TrendSignal[] {
   const now = Date.now();
   const windowHours = config.scoring.recencyWindowHours || 24;
@@ -460,15 +478,20 @@ export async function runDailyCycle(baseDir: string) {
     const vercelAppName = sanitizeRepoName(content?.appName || baseName).slice(0, 36) || baseName;
 
     if (repoOwner && process.env.VERCEL_TOKEN) {
-      try {
-        const vercelProject = await createVercelProject({
-          name: vercelAppName,
-          repo: `${repoOwner}/${repo.name}`
-        });
-        vercelProjectUrl = vercelProject.url;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        await log(baseDir, 'error', message);
+      const repoSlug = `${repoOwner}/${repo.name}`;
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+          const vercelProject = await createVercelProject({
+            name: vercelAppName,
+            repo: repoSlug
+          });
+          vercelProjectUrl = vercelProject.url;
+          break;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          await log(baseDir, 'error', `Vercel attempt ${attempt} failed: ${message}`);
+          await sleep(1500 * attempt);
+        }
       }
     } else if (!repoOwner) {
       await log(baseDir, 'warn', 'Skipping Vercel project: unable to determine GitHub repo owner.');
@@ -500,7 +523,12 @@ export async function runDailyCycle(baseDir: string) {
     });
 
     if (content?.readme) {
-      await fs.writeFile(path.join(tempDir, 'README.md'), `${content.readme.trim()}\n`);
+      const patched = ensureReadmeLinks(content.readme, [
+        { label: 'Repo', url: repo.htmlUrl },
+        { label: 'Web', url: vercelProjectUrl ?? '' },
+        { label: 'Explorer', url: explorerUrl }
+      ]);
+      await fs.writeFile(path.join(tempDir, 'README.md'), `${patched.trim()}\n`);
     }
 
     await initAndPushRepo(tempDir, repo.cloneUrl, token, content?.commitMessage);
