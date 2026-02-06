@@ -39,6 +39,15 @@
   gap: var(--space-md);
 }
 
+.newSkill {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.newSkill .input {
+  flex: 1;
+}
+
 .status {
   color: var(--text-muted);
 }

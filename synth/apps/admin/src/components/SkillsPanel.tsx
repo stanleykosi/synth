@@ -14,6 +14,7 @@ export function SkillsPanel() {
   const [active, setActive] = useState<SkillRecord | null>(null);
   const [draft, setDraft] = useState('');
   const [status, setStatus] = useState<string | null>(null);
+  const [newSkillName, setNewSkillName] = useState('');
 
   useEffect(() => {
     fetch('/api/skills')
@@ -53,6 +54,32 @@ export function SkillsPanel() {
     setStatus('Saved');
   };
 
+  const handleSaveAsNew = async () => {
+    if (!newSkillName.trim()) {
+      setStatus('Enter a new skill name');
+      return;
+    }
+    setStatus('Saving...');
+    const res = await fetch('/api/skills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newSkillName.trim(), content: draft })
+    });
+    if (!res.ok) {
+      setStatus('Save failed');
+      return;
+    }
+    const data = await res.json() as SkillRecord[];
+    setSkills(data);
+    const created = data.find((skill) => skill.name === newSkillName.trim());
+    if (created) {
+      setActive(created);
+      setDraft(created.content);
+    }
+    setNewSkillName('');
+    setStatus('Saved');
+  };
+
   return (
     <div className={styles.panel}>
       <div className={styles.sidebar}>
@@ -76,6 +103,15 @@ export function SkillsPanel() {
         <div className={styles.actions}>
           <button className="btn btn-primary" onClick={handleSave}>Save Skill</button>
           {status && <span className={styles.status}>{status}</span>}
+        </div>
+        <div className={styles.newSkill}>
+          <input
+            className="input"
+            placeholder="New skill name (e.g., data-synth)"
+            value={newSkillName}
+            onChange={(event) => setNewSkillName(event.target.value)}
+          />
+          <button className="btn btn-secondary" onClick={handleSaveAsNew}>Save as New</button>
         </div>
       </div>
     </div>

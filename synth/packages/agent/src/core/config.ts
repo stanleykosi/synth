@@ -51,6 +51,9 @@ export interface AgentConfig {
     weights: Record<string, number>;
     engagementCap: number;
     suggestionStakeMultiplier: number;
+    stakePriorityEth: number;
+    recencyBoost: number;
+    recencyWindowHours: number;
   };
   pipeline: {
     maxSignals: number;
@@ -132,7 +135,10 @@ const fallbackConfig: AgentConfig = {
       suggestion: 1.3
     },
     engagementCap: 5000,
-    suggestionStakeMultiplier: 200000
+    suggestionStakeMultiplier: 200000,
+    stakePriorityEth: 0.1,
+    recencyBoost: 1.2,
+    recencyWindowHours: 24
   },
   pipeline: {
     maxSignals: 50,

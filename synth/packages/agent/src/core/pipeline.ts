@@ -62,6 +62,38 @@ function generateSymbol(name: string): string {
   return (letters.slice(0, 5) || 'SYNTH').slice(0, 5);
 }
 
+function applyRecencyBoost(signals: TrendSignal[], config: AgentConfig): TrendSignal[] {
+  const now = Date.now();
+  const windowHours = config.scoring.recencyWindowHours || 24;
+  const boost = config.scoring.recencyBoost || 0;
+
+  return signals.map((signal) => {
+    const capturedAt = Date.parse(signal.capturedAt);
+    if (Number.isNaN(capturedAt) || windowHours <= 0 || boost <= 0) {
+      return signal;
+    }
+    const ageHours = Math.max(0, (now - capturedAt) / 3_600_000);
+    const factor = Math.max(0, (windowHours - ageHours) / windowHours);
+    const score = Math.min(10, signal.score + factor * boost);
+    return {
+      ...signal,
+      score,
+      meta: {
+        ...(signal.meta ?? {}),
+        recencyHours: Math.round(ageHours * 10) / 10
+      }
+    };
+  });
+}
+
+function selectPrioritySuggestion(signals: TrendSignal[], stakeThreshold: number): TrendSignal | null {
+  const suggestions = signals.filter((signal) => signal.source === 'suggestion');
+  const eligible = suggestions
+    .filter((signal) => typeof signal.meta?.stakeEth === 'number' && signal.meta?.stakeEth >= stakeThreshold)
+    .sort((a, b) => (b.meta?.stakeEth as number) - (a.meta?.stakeEth as number));
+  return eligible[0] ?? null;
+}
+
 function buildFallbackDecision(signal: TrendSignal, evidence: Record<string, unknown> | undefined) {
   const name = generateDropName(signal);
   return {
@@ -169,8 +201,10 @@ export async function runDailyCycle(baseDir: string) {
       ...suggestions
     ]);
 
-    const suggestionSignals = signals.filter((signal) => signal.source === 'suggestion');
-    const otherSignals = signals.filter((signal) => signal.source !== 'suggestion');
+    const boosted = applyRecencyBoost(signals, config);
+
+    const suggestionSignals = boosted.filter((signal) => signal.source === 'suggestion');
+    const otherSignals = boosted.filter((signal) => signal.source !== 'suggestion');
 
     const maxSignals = Math.max(1, config.pipeline.maxSignals);
     const cap = Math.max(1, maxSignals - suggestionSignals.length);
@@ -199,9 +233,10 @@ export async function runDailyCycle(baseDir: string) {
     const enriched = deduped.map((signal) => {
       const validation = validations[signal.id];
       const validationBoost = validation ? validation.composite * config.validation.weight : 0;
+      const score = Math.max(0, Math.min(10, signal.score + validationBoost));
       return {
         ...signal,
-        score: signal.score + validationBoost,
+        score,
         meta: {
           ...(signal.meta ?? {}),
           evidence: evidenceMap[signal.id] ?? [],
@@ -218,12 +253,14 @@ export async function runDailyCycle(baseDir: string) {
 
     const agentContext = await buildAgentContext(baseDir);
     const skills = await buildSkillsContext(baseDir);
+    const prioritySuggestion = selectPrioritySuggestion(ranked, config.scoring.stakePriorityEth || 0.1);
     const decision = await generateDecision({
       signals: ranked,
       evidence: evidenceMap,
       config,
       skills,
-      context: agentContext
+      context: agentContext,
+      prioritySignalId: prioritySuggestion?.id
     });
 
     if (decision) {
@@ -239,9 +276,16 @@ export async function runDailyCycle(baseDir: string) {
         ? ranked.find((signal) => signal.id === preferredId) ?? defaultSignal
         : defaultSignal;
 
+    const stakeOverride = Boolean(prioritySuggestion);
+    if (stakeOverride && prioritySuggestion) {
+      topSignal = prioritySuggestion;
+      await log(baseDir, 'info', `Stake override active. Using ${prioritySuggestion.id}.`);
+    }
+
     const bestSuggestion = ranked.find((signal) => signal.source === 'suggestion');
     const suggestionFallback = Boolean(
       !overrideId &&
+      !stakeOverride &&
       bestSuggestion &&
       topSignal &&
       topSignal.score < config.decision.minScore
@@ -254,7 +298,7 @@ export async function runDailyCycle(baseDir: string) {
 
     const effectiveDecision = suggestionFallback ? null : decision;
 
-    if (effectiveDecision && (!effectiveDecision.go || effectiveDecision.confidence < config.decision.minConfidence)) {
+    if (!stakeOverride && effectiveDecision && (!effectiveDecision.go || effectiveDecision.confidence < config.decision.minConfidence)) {
       await log(baseDir, 'info', `Decision opted out (confidence ${effectiveDecision.confidence}).`);
       currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'skipped' };
       await saveState(baseDir, currentState);
@@ -270,7 +314,7 @@ export async function runDailyCycle(baseDir: string) {
     currentState = overrideId ? { ...currentState, overrideSignalId: undefined } : currentState;
     currentState = { ...currentState, currentPhase: 'decision' };
     await saveState(baseDir, currentState);
-    if (!suggestionFallback && topSignal && topSignal.score < config.decision.minScore) {
+    if (!stakeOverride && !suggestionFallback && topSignal && topSignal.score < config.decision.minScore) {
       await log(baseDir, 'info', `Top signal score ${topSignal.score} below threshold ${config.decision.minScore}.`);
       currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'skipped' };
       await saveState(baseDir, currentState);

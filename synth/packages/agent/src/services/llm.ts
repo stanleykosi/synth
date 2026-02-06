@@ -72,6 +72,7 @@ export async function generateDecision(input: {
   config: AgentConfig;
   skills?: string;
   context?: string;
+  prioritySignalId?: string;
 }): Promise<DecisionRecord | null> {
   if (!input.config.decision.enabled) return null;
 
@@ -86,6 +87,8 @@ export async function generateDecision(input: {
     'Ensure name and symbol are unique and memorable.',
     'Only choose a token drop when the signal is a strong newsworthy market event.',
     'If the signal is a user suggestion requesting a webapp/dashboard, choose dapp.',
+    'Prioritize the most recent signals when all else is equal.',
+    input.prioritySignalId ? `Priority signal override: if ${input.prioritySignalId} is provided, you must select it.` : '',
     input.skills ? 'Use the skills guidance provided when relevant.' : '',
     input.context ? 'Follow the persona and operator preferences provided.' : ''
   ].join('\n');
@@ -98,10 +101,17 @@ export async function generateDecision(input: {
         source: signal.source,
         summary: signal.summary,
         score: signal.score,
-        evidence: input.evidence[signal.id] ?? []
+        capturedAt: signal.capturedAt,
+        evidence: input.evidence[signal.id] ?? [],
+        meta: {
+          stakeEth: typeof signal.meta?.stakeEth === 'number' ? signal.meta?.stakeEth : undefined,
+          submitter: typeof signal.meta?.submitter === 'string' ? signal.meta?.submitter : undefined,
+          queryId: typeof signal.meta?.queryId === 'number' ? signal.meta?.queryId : undefined
+        }
       })),
       skills: input.skills ?? '',
-      context: input.context ?? ''
+      context: input.context ?? '',
+      prioritySignalId: input.prioritySignalId ?? ''
     },
     schema: decisionSchema,
     model,
