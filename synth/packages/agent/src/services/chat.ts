@@ -1,6 +1,6 @@
 import type { ChatMessage, DecisionRecord, TrendSignal } from '../core/types.js';
 import { loadDecisions, loadTrends } from '../core/memory.js';
-import { invokeOpenClawTool } from './openclaw.js';
+import { runLlmTask } from './llm-runner.js';
 import { buildSkillsContext } from './skills.js';
 import { buildAgentContext } from './context.js';
 
@@ -67,11 +67,7 @@ export async function runChat(baseDir: string, message: string, history: ChatMes
     maxTokens
   };
 
-  const result = await invokeOpenClawTool<unknown>({
-    tool: 'llm-task',
-    action: 'json',
-    args: payload
-  });
+  const result = await runLlmTask<unknown>(payload);
 
   if (!result || typeof result !== 'object' || !('reply' in result)) {
     return 'Unable to generate a response right now.';

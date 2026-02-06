@@ -1,4 +1,4 @@
-import { invokeOpenClawTool } from './openclaw.js';
+import { runLlmTask } from './llm-runner.js';
 
 const schema = {
   type: 'object',
@@ -36,11 +36,7 @@ export async function summarizeDuneRows(input: {
   };
 
   try {
-    const result = await invokeOpenClawTool<unknown>({
-      tool: 'llm-task',
-      action: 'json',
-      args: payload
-    });
+  const result = await runLlmTask<unknown>(payload);
 
     if (!result || typeof result !== 'object') return null;
     const summary = String((result as { summary?: string }).summary ?? '').trim();

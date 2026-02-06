@@ -1,5 +1,5 @@
 import type { TrendSignal, DropType } from '../core/types.js';
-import { invokeOpenClawTool } from './openclaw.js';
+import { runLlmTask } from './llm-runner.js';
 
 export interface DropContentInput {
   dropType: DropType;
@@ -89,11 +89,7 @@ export async function generateDropContent(input: DropContentInput): Promise<Drop
   };
 
   try {
-    const result = await invokeOpenClawTool<unknown>({
-      tool: 'llm-task',
-      action: 'json',
-      args: payload
-    });
+    const result = await runLlmTask<unknown>(payload);
 
     if (!result || typeof result !== 'object') return null;
     const data = result as DropContent;

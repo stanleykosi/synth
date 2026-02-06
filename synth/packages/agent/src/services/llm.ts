@@ -1,6 +1,6 @@
 import type { DecisionRecord, EvidenceItem, TrendSignal } from '../core/types.js';
 import type { AgentConfig } from '../core/config.js';
-import { invokeOpenClawTool } from './openclaw.js';
+import { runLlmTask } from './llm-runner.js';
 
 const decisionSchema = {
   type: 'object',
@@ -120,11 +120,7 @@ export async function generateDecision(input: {
   };
 
   try {
-    const result = await invokeOpenClawTool<unknown>({
-      tool: 'llm-task',
-      action: 'json',
-      args: payload
-    });
+    const result = await runLlmTask<unknown>(payload);
 
     return parseDecision(result);
   } catch {
