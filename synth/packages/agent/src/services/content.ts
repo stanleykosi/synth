@@ -27,6 +27,7 @@ export interface DropContent {
   about: string;
   readme: string;
   commitMessage: string;
+  appName?: string;
 }
 
 const schema = {
@@ -34,7 +35,8 @@ const schema = {
   properties: {
     about: { type: 'string', minLength: 20, maxLength: 200 },
     readme: { type: 'string', minLength: 200 },
-    commitMessage: { type: 'string', minLength: 5, maxLength: 72 }
+    commitMessage: { type: 'string', minLength: 5, maxLength: 72 },
+    appName: { type: 'string', minLength: 3, maxLength: 36 }
   },
   required: ['about', 'readme', 'commitMessage'],
   additionalProperties: false
@@ -53,6 +55,7 @@ export async function generateDropContent(input: DropContentInput): Promise<Drop
     'Use the provided drop details and links. Do not invent addresses.',
     'About should be a short GitHub repo summary (<= 200 chars).',
     'Commit message should be <= 72 chars and professional.',
+    'App name should be a short, memorable slug (no spaces), suitable for Vercel.',
     input.skills ? 'Use the skills guidance provided when relevant.' : '',
     input.context ? 'Follow the persona and operator preferences provided.' : ''
   ].join('\n');
@@ -98,7 +101,8 @@ export async function generateDropContent(input: DropContentInput): Promise<Drop
     return {
       about: String(data.about).trim(),
       readme: String(data.readme).trim(),
-      commitMessage: String(data.commitMessage).trim()
+      commitMessage: String(data.commitMessage).trim(),
+      appName: data.appName ? String(data.appName).trim() : undefined
     };
   } catch {
     return null;

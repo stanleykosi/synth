@@ -427,28 +427,12 @@ export async function runDailyCycle(baseDir: string) {
       }
     }
 
-    const repoName = sanitizeRepoName(`${Date.now()}-${dropName}`);
-    const repo = await ensureRepo({ name: repoName, description });
+    const baseName = sanitizeRepoName(`${Date.now()}-${dropName}`);
+    const repo = await ensureRepo({ name: baseName, description });
     const token = process.env.GITHUB_TOKEN ?? '';
     const repoOwner = process.env.GITHUB_ORG ?? parseRepoOwner(repo.htmlUrl);
 
     let vercelProjectUrl: string | undefined;
-    if (repoOwner && process.env.VERCEL_TOKEN) {
-      try {
-        const vercelProject = await createVercelProject({
-          name: repoName,
-          repo: `${repoOwner}/${repoName}`
-        });
-        vercelProjectUrl = vercelProject.url;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        await log(baseDir, 'error', message);
-      }
-    } else if (!repoOwner) {
-      await log(baseDir, 'warn', 'Skipping Vercel project: unable to determine GitHub repo owner.');
-    } else {
-      await log(baseDir, 'warn', 'Skipping Vercel project: missing VERCEL_TOKEN.');
-    }
 
     const isMainnet = mainnetSucceeded;
     const explorerUrl = isMainnet
@@ -487,16 +471,34 @@ export async function runDailyCycle(baseDir: string) {
       contractAddress: mainnetAddress,
       explorerUrl,
       repoUrl: repo.htmlUrl,
-      webappUrl: vercelProjectUrl,
+      webappUrl: '',
       skills: contentSkills,
       context: agentContext
     });
 
     const repoAbout = content?.about ?? description;
+    const vercelAppName = sanitizeRepoName(content?.appName || baseName).slice(0, 36) || baseName;
+
+    if (repoOwner && process.env.VERCEL_TOKEN) {
+      try {
+        const vercelProject = await createVercelProject({
+          name: vercelAppName,
+          repo: `${repoOwner}/${repo.name}`
+        });
+        vercelProjectUrl = vercelProject.url;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await log(baseDir, 'error', message);
+      }
+    } else if (!repoOwner) {
+      await log(baseDir, 'warn', 'Skipping Vercel project: unable to determine GitHub repo owner.');
+    } else {
+      await log(baseDir, 'warn', 'Skipping Vercel project: missing VERCEL_TOKEN.');
+    }
 
     const tempDir = await prepareRepoTemplate({
       baseDir,
-      repoName,
+      repoName: repo.name,
       dropName,
       description,
       tagline,
