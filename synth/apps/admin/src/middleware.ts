@@ -15,11 +15,7 @@ function decodeBasicAuth(value: string): { user: string; pass: string } | null {
   if (!base64) return null;
   let decoded = '';
   try {
-    if (typeof Buffer !== 'undefined') {
-      decoded = Buffer.from(base64, 'base64').toString('utf-8');
-    } else if (typeof atob === 'function') {
-      decoded = atob(base64);
-    }
+    decoded = globalThis.atob(base64);
   } catch {
     return null;
   }
@@ -55,6 +51,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
-  runtime: 'nodejs'
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)']
 };
