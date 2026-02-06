@@ -71,6 +71,7 @@ export async function generateDecision(input: {
   evidence: Record<string, EvidenceItem[]>;
   config: AgentConfig;
   skills?: string;
+  context?: string;
 }): Promise<DecisionRecord | null> {
   if (!input.config.decision.enabled) return null;
 
@@ -83,7 +84,10 @@ export async function generateDecision(input: {
     'Return JSON only that follows the schema.',
     'If a trend is weak or redundant, set go=false with a rationale.',
     'Ensure name and symbol are unique and memorable.',
-    input.skills ? 'Use the skills guidance provided when relevant.' : ''
+    'Only choose a token drop when the signal is a strong newsworthy market event.',
+    'If the signal is a user suggestion requesting a webapp/dashboard, choose dapp.',
+    input.skills ? 'Use the skills guidance provided when relevant.' : '',
+    input.context ? 'Follow the persona and operator preferences provided.' : ''
   ].join('\n');
 
   const payload = {
@@ -96,7 +100,8 @@ export async function generateDecision(input: {
         score: signal.score,
         evidence: input.evidence[signal.id] ?? []
       })),
-      skills: input.skills ?? ''
+      skills: input.skills ?? '',
+      context: input.context ?? ''
     },
     schema: decisionSchema,
     model,

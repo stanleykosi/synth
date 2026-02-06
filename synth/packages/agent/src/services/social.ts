@@ -24,6 +24,8 @@ export interface SocialCopy {
 export async function generateSocialCopy(input: {
   drop: DropRecord;
   trend: TrendSignal;
+  skills?: string;
+  context?: string;
 }): Promise<SocialCopy | null> {
   const model = process.env.SYNTH_LLM_MODEL ?? 'openrouter/anthropic/claude-3.5-haiku';
   const maxTokens = process.env.SYNTH_LLM_MAX_TOKENS ? Number(process.env.SYNTH_LLM_MAX_TOKENS) : 800;
@@ -38,7 +40,9 @@ export async function generateSocialCopy(input: {
     '4) Repo link + web app link (or "Web: N/A")',
     '5) CTA: submit suggestions or feedback',
     'Keep each tweet <= 280 characters.',
-    'Farcaster should be a single post summarizing the drop with links.'
+    'Farcaster should be a single post summarizing the drop with links.',
+    input.skills ? 'Use the skills guidance provided when relevant.' : '',
+    input.context ? 'Follow the persona and operator preferences provided.' : ''
   ].join('\n');
 
   const payload = {
@@ -51,7 +55,9 @@ export async function generateSocialCopy(input: {
       explorer: input.drop.explorerUrl ?? '',
       repo: input.drop.githubUrl,
       web: input.drop.webappUrl ?? '',
-      network: input.drop.network ?? ''
+      network: input.drop.network ?? '',
+      skills: input.skills ?? '',
+      context: input.context ?? ''
     },
     schema,
     model,

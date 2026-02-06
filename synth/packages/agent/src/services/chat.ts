@@ -2,6 +2,7 @@ import type { ChatMessage, DecisionRecord, TrendSignal } from '../core/types.js'
 import { loadDecisions, loadTrends } from '../core/memory.js';
 import { invokeOpenClawTool } from './openclaw.js';
 import { buildSkillsContext } from './skills.js';
+import { buildAgentContext } from './context.js';
 
 const chatSchema = {
   type: 'object',
@@ -39,6 +40,7 @@ export async function runChat(baseDir: string, message: string, history: ChatMes
   const decisions = await loadDecisions(baseDir);
   const trends = await loadTrends(baseDir);
   const skills = await buildSkillsContext(baseDir);
+  const contextBlock = await buildAgentContext(baseDir);
   const context = buildContext(decisions, trends);
 
   const prompt = [
@@ -57,7 +59,8 @@ export async function runChat(baseDir: string, message: string, history: ChatMes
       message,
       context,
       history: history.slice(-10).map((entry) => ({ role: entry.role, content: entry.content })),
-      skills
+      skills,
+      agent: contextBlock
     },
     schema: chatSchema,
     model,

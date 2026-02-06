@@ -67,6 +67,25 @@ export async function ensureRepo(params: { name: string; description: string }):
   }
 }
 
+export async function updateRepoDescription(params: {
+  owner: string;
+  repo: string;
+  description: string;
+}): Promise<void> {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) return;
+  const octokit = new Octokit({ auth: token });
+  try {
+    await octokit.repos.update({
+      owner: params.owner,
+      repo: params.repo,
+      description: params.description
+    });
+  } catch {
+    // Best-effort only.
+  }
+}
+
 function parseRepoFromUrl(url: string): { owner: string; repo: string } | null {
   try {
     const parsed = new URL(url);

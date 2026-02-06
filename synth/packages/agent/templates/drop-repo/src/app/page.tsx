@@ -135,6 +135,21 @@ export default function Home() {
         </div>
       </header>
 
+      <section className="card">
+        <h2>About</h2>
+        <p>__ABOUT__</p>
+        <div className="cta-row">
+          <a className="btn ghost" href="__REPO_URL__" target="_blank" rel="noreferrer">
+            View Repo
+          </a>
+          {('__WEBAPP_URL__' && '__WEBAPP_URL__'.length > 0) ? (
+            <a className="btn ghost" href="__WEBAPP_URL__" target="_blank" rel="noreferrer">
+              Live App
+            </a>
+          ) : null}
+        </div>
+      </section>
+
       <section className="grid">
         <div className="card">
           <h2>Contract Snapshot</h2>

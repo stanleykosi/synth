@@ -13,7 +13,7 @@ import { fetchOnchainSignals } from '../sources/onchain.js';
 import { fetchSuggestionSignals } from '../sources/suggestions.js';
 import { fetchGraphSignals } from '../sources/graph.js';
 import { runForge, parseDeployedAddress, readBroadcastGasInfo } from '../services/foundry.js';
-import { ensureRepo } from '../services/github.js';
+import { ensureRepo, updateRepoDescription } from '../services/github.js';
 import { prepareRepoTemplate, initAndPushRepo } from '../services/repo.js';
 import { createVercelProject } from '../services/vercel.js';
 import { broadcastDrop } from '../services/broadcast.js';
@@ -21,6 +21,8 @@ import { buildEvidence } from '../services/research.js';
 import { generateDecision } from '../services/llm.js';
 import { buildSkillsContext } from '../services/skills.js';
 import { validateTrends } from '../services/validation.js';
+import { buildAgentContext } from '../services/context.js';
+import { generateDropContent } from '../services/content.js';
 
 function nowIso() {
   return new Date().toISOString();
@@ -38,6 +40,9 @@ function pickDropType(signal: TrendSignal): DropType {
     text.includes('frontend') ||
     text.includes('site')
   ) {
+    return 'dapp';
+  }
+  if (signal.source === 'suggestion' && !text.includes('nft') && !text.includes('mint')) {
     return 'dapp';
   }
   if (text.includes('nft') || text.includes('mint')) return 'nft';
@@ -211,12 +216,14 @@ export async function runDailyCycle(baseDir: string) {
     await saveTrends(baseDir, ranked);
     await appendMarkdown(memoryPaths(baseDir).trendsMd, `- ${nowIso()} captured ${ranked.length} signals`);
 
+    const agentContext = await buildAgentContext(baseDir);
     const skills = await buildSkillsContext(baseDir);
     const decision = await generateDecision({
       signals: ranked,
       evidence: evidenceMap,
       config,
-      skills
+      skills,
+      context: agentContext
     });
 
     if (decision) {
@@ -379,6 +386,26 @@ export async function runDailyCycle(baseDir: string) {
     const repoName = sanitizeRepoName(`${Date.now()}-${dropName}`);
     const repo = await ensureRepo({ name: repoName, description });
     const token = process.env.GITHUB_TOKEN ?? '';
+    const repoOwner = process.env.GITHUB_ORG ?? parseRepoOwner(repo.htmlUrl);
+
+    let vercelProjectUrl: string | undefined;
+    if (repoOwner && process.env.VERCEL_TOKEN) {
+      try {
+        const vercelProject = await createVercelProject({
+          name: repoName,
+          repo: `${repoOwner}/${repoName}`
+        });
+        vercelProjectUrl = vercelProject.url;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await log(baseDir, 'error', message);
+      }
+    } else if (!repoOwner) {
+      await log(baseDir, 'warn', 'Skipping Vercel project: unable to determine GitHub repo owner.');
+    } else {
+      await log(baseDir, 'warn', 'Skipping Vercel project: missing VERCEL_TOKEN.');
+    }
+
     const isMainnet = mainnetSucceeded;
     const explorerUrl = isMainnet
       ? `https://basescan.org/address/${mainnetAddress}`
@@ -388,6 +415,40 @@ export async function runDailyCycle(baseDir: string) {
       ? (process.env.BASE_RPC ?? 'https://mainnet.base.org')
       : (process.env.BASE_SEPOLIA_RPC ?? 'https://sepolia.base.org');
     const chainId = isMainnet ? '8453' : '84532';
+
+    const dropSkillNames = dropType === 'dapp'
+      ? ['web-builder', 'contract-synth']
+      : dropType === 'token'
+        ? ['token-builder', 'contract-synth']
+        : dropType === 'nft'
+          ? ['nft-builder', 'contract-synth']
+          : ['contract-synth'];
+    const contentSkills = await buildSkillsContext(baseDir, { include: dropSkillNames });
+    const socialSkills = await buildSkillsContext(baseDir, { include: ['social-broadcast', ...dropSkillNames] });
+
+    const content = await generateDropContent({
+      dropType,
+      dropName,
+      symbol,
+      tagline,
+      description,
+      hero,
+      cta,
+      features,
+      rationale,
+      trend: topSignal,
+      network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
+      chain: 'Base',
+      chainId,
+      contractAddress: mainnetAddress,
+      explorerUrl,
+      repoUrl: repo.htmlUrl,
+      webappUrl: vercelProjectUrl,
+      skills: contentSkills,
+      context: agentContext
+    });
+
+    const repoAbout = content?.about ?? description;
 
     const tempDir = await prepareRepoTemplate({
       baseDir,
@@ -406,27 +467,24 @@ export async function runDailyCycle(baseDir: string) {
       network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
       explorerUrl,
       rpcUrl,
-      chainId
+      chainId,
+      about: repoAbout,
+      repoUrl: repo.htmlUrl,
+      webappUrl: vercelProjectUrl
     });
-    await initAndPushRepo(tempDir, repo.cloneUrl, token);
 
-    let vercelProjectUrl: string | undefined;
-    const repoOwner = process.env.GITHUB_ORG ?? parseRepoOwner(repo.htmlUrl);
-    if (repoOwner && process.env.VERCEL_TOKEN) {
-      try {
-        const vercelProject = await createVercelProject({
-          name: repoName,
-          repo: `${repoOwner}/${repoName}`
-        });
-        vercelProjectUrl = vercelProject.url;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        await log(baseDir, 'error', message);
-      }
-    } else if (!repoOwner) {
-      await log(baseDir, 'warn', 'Skipping Vercel project: unable to determine GitHub repo owner.');
-    } else {
-      await log(baseDir, 'warn', 'Skipping Vercel project: missing VERCEL_TOKEN.');
+    if (content?.readme) {
+      await fs.writeFile(path.join(tempDir, 'README.md'), `${content.readme.trim()}\n`);
+    }
+
+    await initAndPushRepo(tempDir, repo.cloneUrl, token, content?.commitMessage);
+
+    if (repoOwner && repoAbout) {
+      await updateRepoDescription({
+        owner: repoOwner,
+        repo: repo.name,
+        description: repoAbout
+      });
     }
 
     const dropRecord: DropRecord = {
@@ -454,7 +512,13 @@ export async function runDailyCycle(baseDir: string) {
     drops.unshift(dropRecord);
     await saveDrops(baseDir, drops);
 
-    await broadcastDrop({ baseDir, drop: dropRecord, trend: topSignal });
+    await broadcastDrop({
+      baseDir,
+      drop: dropRecord,
+      trend: topSignal,
+      skills: socialSkills,
+      context: agentContext
+    });
 
     await appendMarkdown(memoryPaths(baseDir).dropsMd, `- ${nowIso()} deployed ${dropRecord.type} ${dropRecord.contractAddress}`);
 

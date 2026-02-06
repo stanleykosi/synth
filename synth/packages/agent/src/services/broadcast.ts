@@ -8,6 +8,8 @@ interface BroadcastInput {
   baseDir: string;
   drop: DropRecord;
   trend: TrendSignal;
+  skills?: string;
+  context?: string;
 }
 
 function buildThread(drop: DropRecord, trend: TrendSignal): string[] {
@@ -23,7 +25,12 @@ function buildThread(drop: DropRecord, trend: TrendSignal): string[] {
 }
 
 export async function broadcastDrop(input: BroadcastInput) {
-  const generated = await generateSocialCopy({ drop: input.drop, trend: input.trend });
+  const generated = await generateSocialCopy({
+    drop: input.drop,
+    trend: input.trend,
+    skills: input.skills,
+    context: input.context
+  });
   const thread = generated?.thread && generated.thread.length > 0
     ? generated.thread
     : buildThread(input.drop, input.trend);

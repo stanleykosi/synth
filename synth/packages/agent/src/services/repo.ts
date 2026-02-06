@@ -22,6 +22,9 @@ export interface RepoTemplateInput {
   explorerUrl: string;
   rpcUrl: string;
   chainId: string;
+  about?: string;
+  repoUrl?: string;
+  webappUrl?: string;
 }
 
 const tokenMap: Record<string, (input: RepoTemplateInput) => string> = {
@@ -33,6 +36,9 @@ const tokenMap: Record<string, (input: RepoTemplateInput) => string> = {
   '__CTA__': (input) => input.cta,
   '__FEATURES__': (input) => input.features.map((feature) => `- ${feature}`).join('\n'),
   '__FEATURES_HTML__': (input) => input.features.map((feature) => `<li>${feature}</li>`).join(''),
+  '__ABOUT__': (input) => input.about ?? '',
+  '__REPO_URL__': (input) => input.repoUrl ?? '',
+  '__WEBAPP_URL__': (input) => input.webappUrl ?? '',
   '__SYMBOL__': (input) => input.symbol,
   '__DROP_TYPE__': (input) => input.dropType,
   '__RATIONALE__': (input) => input.rationale,
@@ -44,10 +50,16 @@ const tokenMap: Record<string, (input: RepoTemplateInput) => string> = {
   '__CHAIN_ID__': (input) => input.chainId
 };
 
+function escapeJson(value: string): string {
+  return JSON.stringify(value).slice(1, -1);
+}
+
 async function replaceTokens(filePath: string, input: RepoTemplateInput) {
   let content = await fs.readFile(filePath, 'utf-8');
+  const jsonSafe = filePath.endsWith('.json');
   for (const [token, resolver] of Object.entries(tokenMap)) {
-    content = content.replaceAll(token, resolver(input));
+    const raw = resolver(input);
+    content = content.replaceAll(token, jsonSafe ? escapeJson(raw) : raw);
   }
   await fs.writeFile(filePath, content);
 }
@@ -78,11 +90,16 @@ export async function prepareRepoTemplate(input: RepoTemplateInput): Promise<str
   return tempDir;
 }
 
-export async function initAndPushRepo(tempDir: string, repoUrl: string, token: string) {
+export async function initAndPushRepo(
+  tempDir: string,
+  repoUrl: string,
+  token: string,
+  commitMessage = 'Initial SYNTH drop'
+) {
   const git = simpleGit(tempDir);
   await git.init();
   await git.add('.');
-  await git.commit('Initial SYNTH drop');
+  await git.commit(commitMessage);
 
   const authedUrl = repoUrl.replace('https://', `https://x-access-token:${token}@`);
   await git.addRemote('origin', authedUrl);

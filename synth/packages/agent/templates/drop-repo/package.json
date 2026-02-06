@@ -1,5 +1,6 @@
 {
   "name": "__REPO_NAME__",
+  "description": "__ABOUT__",
   "version": "0.1.0",
   "private": true,
   "scripts": {
