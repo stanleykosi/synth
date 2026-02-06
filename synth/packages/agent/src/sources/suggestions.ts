@@ -31,7 +31,8 @@ export async function fetchSuggestionSignals(config: AgentConfig): Promise<Trend
 
   return suggestions.map((suggestion) => {
     const stake = Number(formatEther(suggestion.stake));
-    const engagement = Math.min(stake * 1000, config.scoring.engagementCap);
+    const multiplier = config.scoring.suggestionStakeMultiplier || 1000;
+    const engagement = Math.min(stake * multiplier, config.scoring.engagementCap);
     return {
       id: `suggestion-${suggestion.id.toString()}`,
       source: 'suggestion',

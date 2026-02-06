@@ -50,6 +50,7 @@ export interface AgentConfig {
   scoring: {
     weights: Record<string, number>;
     engagementCap: number;
+    suggestionStakeMultiplier: number;
   };
   pipeline: {
     maxSignals: number;
@@ -130,7 +131,8 @@ const fallbackConfig: AgentConfig = {
       onchain: 1.2,
       suggestion: 1.3
     },
-    engagementCap: 5000
+    engagementCap: 5000,
+    suggestionStakeMultiplier: 200000
   },
   pipeline: {
     maxSignals: 50,

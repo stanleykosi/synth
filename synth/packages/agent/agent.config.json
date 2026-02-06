@@ -90,7 +90,8 @@
       "onchain": 1.1,
       "suggestion": 1.3
     },
-    "engagementCap": 5000
+    "engagementCap": 5000,
+    "suggestionStakeMultiplier": 200000
   },
   "pipeline": {
     "maxSignals": 50,
