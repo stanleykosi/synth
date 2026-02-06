@@ -2,7 +2,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { loadConfig } from './config.js';
 import { finalizeScores } from './scoring.js';
-import { loadDrops, loadState, saveDrops, saveState, appendMarkdown, memoryPaths, saveTrends } from './memory.js';
+import { loadDrops, loadState, saveDrops, saveState, appendMarkdown, memoryPaths, saveTrends, loadDecisions, saveDecisions } from './memory.js';
 import { log } from './logger.js';
 import type { DropRecord, TrendSignal, DropType } from './types.js';
 import { fetchTwitterSignals } from '../sources/twitter.js';
@@ -11,11 +11,16 @@ import { fetchFarcasterSignals } from '../sources/farcaster.js';
 import { fetchDiscordSignals } from '../sources/discord.js';
 import { fetchOnchainSignals } from '../sources/onchain.js';
 import { fetchSuggestionSignals } from '../sources/suggestions.js';
-import { runForge, parseDeployedAddress } from '../services/foundry.js';
+import { fetchGraphSignals } from '../sources/graph.js';
+import { runForge, parseDeployedAddress, readBroadcastGasInfo } from '../services/foundry.js';
 import { ensureRepo } from '../services/github.js';
 import { prepareRepoTemplate, initAndPushRepo } from '../services/repo.js';
 import { createVercelProject } from '../services/vercel.js';
 import { broadcastDrop } from '../services/broadcast.js';
+import { buildEvidence } from '../services/research.js';
+import { generateDecision } from '../services/llm.js';
+import { buildSkillsContext } from '../services/skills.js';
+import { validateTrends } from '../services/validation.js';
 
 function nowIso() {
   return new Date().toISOString();
@@ -97,17 +102,22 @@ export async function runDailyCycle(baseDir: string) {
     await log(baseDir, 'warn', 'Agent is paused. Skipping cycle.');
     return;
   }
+  if (state.currentPhase !== 'idle') {
+    await log(baseDir, 'warn', `Agent is already running (${state.currentPhase}). Skipping overlapping cycle.`);
+    return;
+  }
 
   try {
     currentState = { ...currentState, currentPhase: 'signal-detection' };
     await saveState(baseDir, currentState);
 
-    const [twitter, web, farcaster, discord, onchain, suggestions] = await Promise.all([
+    const [twitter, web, farcaster, discord, onchain, graph, suggestions] = await Promise.all([
       fetchTwitterSignals(config),
       fetchWebSignals(config),
       fetchFarcasterSignals(config),
       fetchDiscordSignals(config),
       fetchOnchainSignals(config),
+      fetchGraphSignals(config),
       fetchSuggestionSignals(config)
     ]);
 
@@ -117,6 +127,7 @@ export async function runDailyCycle(baseDir: string) {
       ...farcaster,
       ...discord,
       ...onchain,
+      ...graph,
       ...suggestions
     ]);
 
@@ -130,11 +141,59 @@ export async function runDailyCycle(baseDir: string) {
       if (deduped.length >= config.pipeline.maxSignals) break;
     }
 
-    await saveTrends(baseDir, deduped);
-    await appendMarkdown(memoryPaths(baseDir).trendsMd, `- ${nowIso()} captured ${deduped.length} signals`);
+    const evidenceMap = await buildEvidence(deduped, config);
+    const validations = await validateTrends({ signals: deduped, evidence: evidenceMap, config });
+
+    const enriched = deduped.map((signal) => {
+      const validation = validations[signal.id];
+      const validationBoost = validation ? validation.composite * config.validation.weight : 0;
+      return {
+        ...signal,
+        score: signal.score + validationBoost,
+        meta: {
+          ...(signal.meta ?? {}),
+          evidence: evidenceMap[signal.id] ?? [],
+          validation
+        }
+      };
+    });
+    
+
+    const ranked = [...enriched].sort((a, b) => b.score - a.score);
+
+    await saveTrends(baseDir, ranked);
+    await appendMarkdown(memoryPaths(baseDir).trendsMd, `- ${nowIso()} captured ${ranked.length} signals`);
+
+    const skills = await buildSkillsContext(baseDir);
+    const decision = await generateDecision({
+      signals: ranked,
+      evidence: evidenceMap,
+      config,
+      skills
+    });
+
+    if (decision) {
+      const decisions = await loadDecisions(baseDir);
+      decisions.unshift(decision);
+      await saveDecisions(baseDir, decisions.slice(0, 50));
+      await log(baseDir, 'info', `Decision: ${decision.name} (${decision.dropType}) confidence ${decision.confidence}`);
+    }
 
     const overrideId = state.overrideSignalId;
-    const topSignal = overrideId ? deduped.find((signal) => signal.id === overrideId) ?? deduped[0] : deduped[0];
+    const preferredId = decision?.trendId;
+    const defaultSignal = ranked[0];
+    const topSignal = overrideId
+      ? ranked.find((signal) => signal.id === overrideId) ?? defaultSignal
+      : preferredId
+        ? ranked.find((signal) => signal.id === preferredId) ?? defaultSignal
+        : defaultSignal;
+
+    if (decision && (!decision.go || decision.confidence < config.decision.minConfidence)) {
+      await log(baseDir, 'info', `Decision opted out (confidence ${decision.confidence}).`);
+      currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'skipped' };
+      await saveState(baseDir, currentState);
+      return;
+    }
     if (!topSignal) {
       await log(baseDir, 'warn', 'No signals found.');
       currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'skipped' };
@@ -145,11 +204,25 @@ export async function runDailyCycle(baseDir: string) {
     currentState = overrideId ? { ...currentState, overrideSignalId: undefined } : currentState;
     currentState = { ...currentState, currentPhase: 'decision' };
     await saveState(baseDir, currentState);
-    const dropType = pickDropType(topSignal);
-    const dropName = generateDropName(topSignal);
-    const description = `Built from signal: ${topSignal.summary}`;
+    if (topSignal && topSignal.score < config.decision.minScore) {
+      await log(baseDir, 'info', `Top signal score ${topSignal.score} below threshold ${config.decision.minScore}.`);
+      currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'skipped' };
+      await saveState(baseDir, currentState);
+      return;
+    }
 
-    await appendMarkdown(memoryPaths(baseDir).dropsMd, `- ${nowIso()} decision: ${dropType} for "${dropName}"`);
+    const dropType = decision?.dropType ?? pickDropType(topSignal);
+    const dropName = decision?.name ?? generateDropName(topSignal);
+    const description = decision?.description ?? `Built from signal: ${topSignal.summary}`;
+    const tagline = decision?.tagline ?? 'From noise to signal.';
+    const hero = decision?.hero ?? description;
+    const cta = decision?.cta ?? 'Explore the drop';
+    const features = decision?.features ?? ['Onchain-native', 'Open source', 'Shipped by SYNTH'];
+    const symbol = decision?.symbol ?? generateSymbol(dropName);
+
+    const rationaleSnippet = decision?.rationale ? ` — ${decision.rationale.slice(0, 180)}` : '';
+    const rationale = decision?.rationale ?? 'SYNTH selected this drop based on the top scored signal.';
+    await appendMarkdown(memoryPaths(baseDir).dropsMd, `- ${nowIso()} decision: ${dropType} for "${dropName}"${rationaleSnippet}`);
 
     currentState = { ...currentState, currentPhase: 'development' };
     await saveState(baseDir, currentState);
@@ -180,7 +253,7 @@ export async function runDailyCycle(baseDir: string) {
     const env: NodeJS.ProcessEnv = {
       DEPLOYER_PRIVATE_KEY: deployerKey,
       TOKEN_NAME: dropName,
-      TOKEN_SYMBOL: generateSymbol(dropName),
+      TOKEN_SYMBOL: symbol,
       TOKEN_DECIMALS: '18',
       TOKEN_SUPPLY: '1000000',
       TOKEN_HOLDER: deployerAddress,
@@ -209,8 +282,14 @@ export async function runDailyCycle(baseDir: string) {
     }
 
     await log(baseDir, 'info', `Sepolia deployment success: ${sepoliaAddress}`);
+    let gasInfo = await readBroadcastGasInfo({
+      contractsDir: path.join(baseDir, '..', 'contracts'),
+      scriptName: scriptName,
+      chainId: '84532'
+    });
 
     let mainnetAddress = sepoliaAddress;
+    let mainnetSucceeded = false;
     if (config.pipeline.autoDeployMainnet && process.env.BASE_RPC) {
       const mainnetResult = await deployWithForge({
         baseDir,
@@ -223,20 +302,47 @@ export async function runDailyCycle(baseDir: string) {
         await log(baseDir, 'error', `Mainnet deployment failed: ${mainnetResult.output.slice(0, 4000)}`);
       } else {
         mainnetAddress = addr;
+        mainnetSucceeded = true;
         await log(baseDir, 'info', `Mainnet deployment success: ${mainnetAddress}`);
+        gasInfo = await readBroadcastGasInfo({
+          contractsDir: path.join(baseDir, '..', 'contracts'),
+          scriptName: scriptName,
+          chainId: '8453'
+        });
       }
     }
 
     const repoName = sanitizeRepoName(`${Date.now()}-${dropName}`);
     const repo = await ensureRepo({ name: repoName, description });
     const token = process.env.GITHUB_TOKEN ?? '';
+    const isMainnet = mainnetSucceeded;
+    const explorerUrl = isMainnet
+      ? `https://basescan.org/address/${mainnetAddress}`
+      : `https://sepolia.basescan.org/address/${mainnetAddress}`;
+
+    const rpcUrl = isMainnet
+      ? (process.env.BASE_RPC ?? 'https://mainnet.base.org')
+      : (process.env.BASE_SEPOLIA_RPC ?? 'https://sepolia.base.org');
+    const chainId = isMainnet ? '8453' : '84532';
+
     const tempDir = await prepareRepoTemplate({
       baseDir,
       repoName,
       dropName,
       description,
+      tagline,
+      hero,
+      cta,
+      features,
+      symbol,
+      dropType,
+      rationale,
       contractAddress: mainnetAddress,
-      chain: 'Base'
+      chain: 'Base',
+      network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
+      explorerUrl,
+      rpcUrl,
+      chainId
     });
     await initAndPushRepo(tempDir, repo.cloneUrl, token);
 
@@ -267,9 +373,17 @@ export async function runDailyCycle(baseDir: string) {
       contractAddress: mainnetAddress,
       githubUrl: repo.htmlUrl,
       webappUrl: vercelProjectUrl,
+      explorerUrl,
+      network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
       deployedAt: nowIso(),
       trend: topSignal.summary,
-      status: config.pipeline.autoDeployMainnet ? 'mainnet' : 'testnet'
+      trendSource: topSignal.source,
+      trendScore: topSignal.score,
+      txHash: gasInfo.txHash,
+      gasUsed: gasInfo.gasUsed,
+      gasPrice: gasInfo.gasPrice,
+      gasCostEth: gasInfo.gasCostEth,
+      status: isMainnet ? 'mainnet' : 'testnet'
     };
 
     const drops = await loadDrops(baseDir);

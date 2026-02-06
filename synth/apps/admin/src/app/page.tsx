@@ -3,6 +3,10 @@ import { WalletStatus } from '@/components/WalletStatus';
 import { ControlPanel } from '@/components/ControlPanel';
 import { PipelineStatus } from '@/components/PipelineStatus';
 import { MetricsPanel } from '@/components/MetricsPanel';
+import { DecisionPanel } from '@/components/DecisionPanel';
+import { MemoryPanel } from '@/components/MemoryPanel';
+import { RateLimitPanel } from '@/components/RateLimitPanel';
+import { DeploymentHistory } from '@/components/DeploymentHistory';
 import styles from './page.module.css';
 
 export default function AdminDashboard() {
@@ -30,6 +34,26 @@ export default function AdminDashboard() {
       <section className={styles.section}>
         <h2>Metrics</h2>
         <MetricsPanel />
+      </section>
+
+      <section className={styles.section}>
+        <h2>API Limits</h2>
+        <RateLimitPanel />
+      </section>
+
+      <section className={styles.section}>
+        <h2>Latest Decision</h2>
+        <DecisionPanel />
+      </section>
+
+      <section className={styles.section}>
+        <h2>Deployment History</h2>
+        <DeploymentHistory />
+      </section>
+
+      <section className={styles.section}>
+        <h2>Memory Snapshot</h2>
+        <MemoryPanel />
       </section>
 
       <section className={styles.section}>

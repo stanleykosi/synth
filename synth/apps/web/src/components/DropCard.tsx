@@ -8,8 +8,14 @@ interface Drop {
   contractAddress: string;
   githubUrl: string;
   webappUrl?: string;
+  explorerUrl?: string;
+  network?: string;
   deployedAt: string;
   trend: string;
+  trendSource?: string;
+  trendScore?: number;
+  txHash?: string;
+  gasCostEth?: string;
 }
 
 export function DropCard({ drop }: { drop: Drop }) {
@@ -42,9 +48,18 @@ export function DropCard({ drop }: { drop: Drop }) {
         <span className={styles.trendValue}>{drop.trend}</span>
       </div>
 
+      <div className={styles.meta}>
+        {drop.trendSource && <span className={styles.metaItem}>Source: {drop.trendSource}</span>}
+        {drop.network && <span className={styles.metaItem}>{drop.network}</span>}
+        {typeof drop.trendScore === 'number' && (
+          <span className={styles.metaItem}>Score: {drop.trendScore.toFixed(1)}</span>
+        )}
+        {drop.gasCostEth && <span className={styles.metaItem}>Gas: {drop.gasCostEth} ETH</span>}
+      </div>
+
       <div className={styles.links}>
         <a
-          href={`https://basescan.org/address/${drop.contractAddress}`}
+          href={drop.explorerUrl ?? `https://basescan.org/address/${drop.contractAddress}`}
           target="_blank"
           className={styles.link}
           rel="noreferrer"

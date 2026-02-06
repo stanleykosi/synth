@@ -1,6 +1,6 @@
-import { DropCard } from '@/components/DropCard';
 import type { Drop } from '@/lib/api';
 import { fetchDrops } from '@/lib/api';
+import { DropsView } from '@/components/DropsView';
 import styles from './page.module.css';
 
 async function getDrops(): Promise<Drop[]> {
@@ -23,24 +23,7 @@ export default async function DropsPage() {
         </p>
       </div>
 
-      <div className={styles.filters}>
-        <button className={styles.filterActive}>All</button>
-        <button className={styles.filter}>Tokens</button>
-        <button className={styles.filter}>NFTs</button>
-        <button className={styles.filter}>dApps</button>
-      </div>
-
-      <div className={styles.grid}>
-        {drops.map((drop) => (
-          <DropCard key={drop.id} drop={drop} />
-        ))}
-      </div>
-
-      {drops.length === 0 && (
-        <div className={styles.empty}>
-          <p>No drops yet. Check back soon.</p>
-        </div>
-      )}
+      <DropsView drops={drops} />
     </div>
   );
 }

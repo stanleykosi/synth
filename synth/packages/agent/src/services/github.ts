@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest';
+import type { DropRecord } from '../core/types.js';
 
 export interface RepoResult {
   name: string;
@@ -63,5 +64,59 @@ export async function ensureRepo(params: { name: string; description: string }):
       }
       throw createError;
     }
+  }
+}
+
+function parseRepoFromUrl(url: string): { owner: string; repo: string } | null {
+  try {
+    const parsed = new URL(url);
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    if (parts.length < 2) return null;
+    return { owner: parts[0], repo: parts[1].replace(/\.git$/, '') };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchGithubStarsTotal(drops: DropRecord[]): Promise<number> {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) return 0;
+
+  const octokit = new Octokit({ auth: token });
+  const seen = new Set<string>();
+  let total = 0;
+
+  for (const drop of drops) {
+    const parsed = drop.githubUrl ? parseRepoFromUrl(drop.githubUrl) : null;
+    if (!parsed) continue;
+    const key = `${parsed.owner}/${parsed.repo}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    try {
+      const repo = await octokit.repos.get({ owner: parsed.owner, repo: parsed.repo });
+      total += repo.data.stargazers_count ?? 0;
+    } catch {
+      continue;
+    }
+  }
+
+  return total;
+}
+
+export async function fetchGithubRateLimit() {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) return undefined;
+  const octokit = new Octokit({ auth: token });
+  try {
+    const res = await octokit.rateLimit.get();
+    const core = res.data.resources.core;
+    return {
+      remaining: core.remaining,
+      limit: core.limit,
+      reset: new Date(core.reset * 1000).toISOString()
+    };
+  } catch {
+    return undefined;
   }
 }

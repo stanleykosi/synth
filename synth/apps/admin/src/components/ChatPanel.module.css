@@ -1,0 +1,55 @@
+.panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  display: grid;
+  gap: var(--space-md);
+}
+
+.history {
+  max-height: 360px;
+  overflow-y: auto;
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.message {
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.message p {
+  margin-top: var(--space-xs);
+  color: var(--text-secondary);
+}
+
+.user {
+  border-left: 3px solid var(--accent-secondary);
+}
+
+.assistant {
+  border-left: 3px solid var(--accent-primary);
+}
+
+.system {
+  border-left: 3px solid var(--accent-tertiary);
+}
+
+.role {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.inputRow {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.error,
+.empty {
+  color: var(--text-muted);
+}

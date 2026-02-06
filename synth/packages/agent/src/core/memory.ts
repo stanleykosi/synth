@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { resolveMemoryDir } from '../utils/paths.js';
-import type { TrendSignal, DropRecord, LogEntry, AgentState } from './types.js';
+import type { TrendSignal, DropRecord, LogEntry, AgentState, DecisionRecord, ChatMessage } from './types.js';
 
 async function ensureDir(dir: string) {
   await fs.mkdir(dir, { recursive: true });
@@ -15,6 +15,8 @@ export function memoryPaths(baseDir: string) {
     dropsJson: path.join(memoryDir, 'drops.json'),
     logsJson: path.join(memoryDir, 'logs.json'),
     stateJson: path.join(memoryDir, 'state.json'),
+    decisionsJson: path.join(memoryDir, 'decisions.json'),
+    chatJson: path.join(memoryDir, 'chat.json'),
     trendsMd: path.join(memoryDir, 'trends.md'),
     dropsMd: path.join(memoryDir, 'drops.md')
   };
@@ -80,4 +82,24 @@ export async function loadState(baseDir: string): Promise<AgentState> {
 export async function saveState(baseDir: string, state: AgentState) {
   const { stateJson } = memoryPaths(baseDir);
   await writeJson(stateJson, state);
+}
+
+export async function loadDecisions(baseDir: string): Promise<DecisionRecord[]> {
+  const { decisionsJson } = memoryPaths(baseDir);
+  return readJson(decisionsJson, [] as DecisionRecord[]);
+}
+
+export async function saveDecisions(baseDir: string, decisions: DecisionRecord[]) {
+  const { decisionsJson } = memoryPaths(baseDir);
+  await writeJson(decisionsJson, decisions);
+}
+
+export async function loadChat(baseDir: string): Promise<ChatMessage[]> {
+  const { chatJson } = memoryPaths(baseDir);
+  return readJson(chatJson, [] as ChatMessage[]);
+}
+
+export async function saveChat(baseDir: string, chat: ChatMessage[]) {
+  const { chatJson } = memoryPaths(baseDir);
+  await writeJson(chatJson, chat);
 }

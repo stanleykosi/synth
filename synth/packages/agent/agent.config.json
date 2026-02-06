@@ -4,7 +4,22 @@
     "mode": "browser",
     "browserProfile": "openclaw",
     "browserTarget": "host",
-    "queries": [],
+    "queries": [
+      "base chain",
+      "base l2",
+      "coinbase base",
+      "base bridge",
+      "base airdrop",
+      "base memecoin",
+      "base nft",
+      "base gaming",
+      "base social",
+      "base defi",
+      "farcaster frames",
+      "onchain social",
+      "onchain ai",
+      "autonomous agent"
+    ],
     "maxResults": 30
   },
   "web": {
@@ -23,6 +38,11 @@
         "type": "rss"
       },
       {
+        "name": "Coinbase Blog",
+        "url": "https://blog.coinbase.com/feed",
+        "type": "rss"
+      },
+      {
         "name": "CoinDesk RSS",
         "url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
         "type": "rss"
@@ -34,6 +54,22 @@
       }
     ]
   },
+  "research": {
+    "enabled": true,
+    "maxSignals": 3,
+    "resultsPerSignal": 5,
+    "fetchTop": 1
+  },
+  "decision": {
+    "enabled": true,
+    "minScore": 6,
+    "minConfidence": 0.55
+  },
+  "validation": {
+    "enabled": true,
+    "maxSignals": 6,
+    "weight": 0.6
+  },
   "farcaster": {
     "channels": ["base"],
     "limit": 25
@@ -43,7 +79,7 @@
     "limit": 25
   },
   "dune": {
-    "queryIds": [4107575, 4934347, 6309722]
+    "queryIds": [5737569, 6436472, 6314894, 3798745]
   },
   "scoring": {
     "weights": {

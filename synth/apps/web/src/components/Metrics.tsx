@@ -5,6 +5,8 @@ interface MetricsData {
   contractsByType: Record<'token' | 'nft' | 'dapp' | 'contract', number>;
   suggestionsReceived: number;
   suggestionsBuilt: number;
+  githubStars?: number;
+  gasSpentEth?: string;
 }
 
 export function Metrics({ data }: { data: MetricsData }) {
@@ -14,6 +16,8 @@ export function Metrics({ data }: { data: MetricsData }) {
     { label: 'Contracts Deployed', value: totalContracts, suffix: '' },
     { label: 'Suggestions Received', value: data.suggestionsReceived, suffix: '' },
     { label: 'Suggestions Built', value: data.suggestionsBuilt, suffix: '' },
+    { label: 'GitHub Stars', value: data.githubStars ?? 0, suffix: '' },
+    { label: 'Gas Spent (ETH)', value: data.gasSpentEth ?? '0', suffix: '' }
   ];
 
   return (

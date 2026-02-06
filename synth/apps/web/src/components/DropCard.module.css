@@ -66,6 +66,21 @@
   color: var(--accent-primary);
 }
 
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.metaItem {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
 .links {
   display: flex;
   gap: var(--space-sm);

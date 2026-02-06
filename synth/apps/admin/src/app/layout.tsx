@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { AdminHeader } from '@/components/AdminHeader';
 
 export const metadata: Metadata = {
   title: 'SYNTH Admin',
@@ -14,7 +15,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <main className="container">{children}</main>
+        <main className="container">
+          <AdminHeader />
+          {children}
+        </main>
       </body>
     </html>
   );

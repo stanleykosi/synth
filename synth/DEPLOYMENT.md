@@ -1,6 +1,6 @@
 # SYNTH Production Deployment Guide
 
-Last updated: 2026-02-04
+Last updated: 2026-02-05
 
 This guide is written for someone who is not technical. Every step is small, calm, and explicit.
 
@@ -75,6 +75,7 @@ Optional:
 - `GITHUB_ORG` (only if you want repos created under an org; omit for personal accounts)
 - `VERCEL_TEAM_ID` (only for Vercel Team accounts)
 - `DUNE_API_KEY` (only if you want Dune data)
+- `GRAPH_ENDPOINT` and `GRAPH_QUERY` (only if you want The Graph signals)
 
 ## Part 2: Deploy Web + Admin on Vercel
 
@@ -165,13 +166,33 @@ sudo apt update
 sudo apt install -y git curl build-essential nginx
 ```
 
-### Step 6: Install Node 22 + pnpm
+### Step 6: Install Node + pnpm
+
+First, check what Node you already have:
+
+```
+node -v
+```
+
+If the version is **20 or higher**, keep it. If it is below 20, install a current LTS:
 
 ```
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
-corepack enable
-corepack prepare pnpm@9.15.1 --activate
+```
+
+Then install pnpm via corepack:
+
+```
+sudo corepack enable
+sudo corepack prepare pnpm@9.15.1 --activate
+```
+
+If you see a permission error, run:
+
+```
+sudo ln -s "$(command -v node)" /usr/bin/node || true
+sudo corepack prepare pnpm@9.15.1 --activate
 ```
 
 ### Step 7: Install Foundry
@@ -202,7 +223,8 @@ openclaw setup
 ### Step 2: Copy SYNTH agent workspace
 
 ```
-cp -r /home/synth/synth/packages/agent/* ~/.openclaw/workspace/
+cd ~/synth/synth
+cp -r packages/agent/* ~/.openclaw/workspace/
 ```
 
 ### Step 3: Create the agent environment file
@@ -217,8 +239,15 @@ GITHUB_ORG=
 VERCEL_TOKEN=
 VERCEL_TEAM_ID=
 DUNE_API_KEY=
+BRAVE_API_KEY=
+OPENROUTER_API_KEY=
+GRAPH_ENDPOINT=
+GRAPH_QUERY=
 OPENCLAW_GATEWAY_URL=http://127.0.0.1:18789
 OPENCLAW_GATEWAY_TOKEN=
+OPENCLAW_WORKSPACE_DIR=/home/ubuntu/.openclaw/workspace
+SYNTH_LLM_MODEL=openrouter/anthropic/claude-3.5-haiku
+SYNTH_LLM_MAX_TOKENS=900
 DISCORD_BOT_TOKEN=
 DISCORD_LAUNCH_CHANNEL_ID=
 BASESCAN_API_KEY=
@@ -235,16 +264,106 @@ CORS_ORIGIN=https://synth.xyz
 
 Note: Twitter API keys are only needed for posting. This setup runs without X/Twitter scraping by default and uses RSS/web sources instead.
 
+Note: `OPENROUTER_API_KEY` powers the LLM decision gate and admin chat. OpenClaw expects model refs as `provider/model`, so `openrouter/anthropic/claude-3.5-haiku` is correct. Perplexity search can also use **the same OpenRouter key** (no separate Perplexity key needed).
+
+### Step 3.1: Enable LLM Task in OpenClaw (Required)
+
+OpenClaw needs the `llm-task` plugin for the decision gate and admin chat. Web search is optional.
+
+Edit `~/.openclaw/openclaw.json` and add:
+
+```json
+{
+  "gateway": {
+    "mode": "local",
+    "auth": {
+      "mode": "token",
+      "token": "REPLACE_WITH_RANDOM_TOKEN"
+    }
+  },
+  "plugins": {
+    "entries": {
+      "llm-task": {
+        "enabled": true,
+        "config": {
+          "allowedModels": ["openrouter/anthropic/claude-3.5-haiku"],
+          "maxTokens": 900,
+          "timeoutMs": 30000
+        }
+      }
+    }
+  },
+  "agents": {
+    "list": [
+      {
+        "id": "main",
+        "tools": { "allow": ["llm-task", "web_search", "web_fetch"] }
+      }
+    ]
+  },
+  "tools": {
+    "web": {
+      "search": {
+        "enabled": true,
+        "provider": "perplexity",
+        "perplexity": {
+          "model": "perplexity/sonar-pro"
+        }
+      },
+      "fetch": { "enabled": true }
+    }
+  }
+}
+```
+
+Generate a token:
+
+```
+openssl rand -hex 32
+```
+
+Put the same value into:
+
+- `~/.openclaw/openclaw.json` → `gateway.auth.token`
+- `~/.openclaw/.env` → `OPENCLAW_GATEWAY_TOKEN`
+
+OpenRouter auth (one time):
+
+```
+openclaw models auth paste-token --provider openrouter
+```
+
+### Step 3.2 (Optional): Use Brave Instead of Perplexity
+
+If you do not want Perplexity search, disable it and use Brave:
+
+1. Set `tools.web.search.enabled` to `false` in `~/.openclaw/openclaw.json`.
+2. Run:
+
+```
+openclaw configure --section web
+```
+
+If you disable search entirely, the agent still works using RSS + onchain + Farcaster data.
+
+If you prefer Brave Search instead of Perplexity:
+
+```
+openclaw configure --section web
+```
+
 ### Step 4: Configure the agent targets
 
 Edit `synth/packages/agent/agent.config.json`:
 
 - If you want X/Twitter signals later, set `twitter.enabled` to `true` and choose `twitter.mode` (`browser` or `api`).
 - If you do NOT want X/Twitter, keep `twitter.enabled` as `false` and leave `twitter.queries` empty.
-- Configure web/RSS sources in `web.sources` (Base, Ethereum blog, CoinDesk, Farcaster RSS are included by default).
+- Configure web/RSS sources in `web.sources` (Base Mirror, Ethereum Blog, Coinbase Blog, CoinDesk, and Farcaster RSS are included by default).
+- Configure deep research in `research` (how many signals to enrich).
+- Configure the LLM decision gate in `decision` (min score/confidence thresholds).
 - Add Farcaster channels in `farcaster.channels`.
 - Add Discord channel IDs in `discord.channelIds`.
-- Add Dune query IDs in `dune.queryIds`.
+- Add Dune query IDs in `dune.queryIds` (Base activity + bridge flow queries are included by default).
 - Keep `autoDeployMainnet` false until you are ready.
 
 ### Step 4.1: (Optional) X/Twitter browser login
@@ -342,6 +461,26 @@ curl http://127.0.0.1:8787/trends
 ```
 
 If you prefer the versioned paths, use `/api/health`, `/api/status`, and `/api/trends`.
+
+### Step 5: Enable Admin Chat + Skills
+
+The admin UI now includes:
+
+- **Chat** (admin-only) to talk to SYNTH via OpenClaw LLM.
+- **Skills** editor to update `SKILL.md` files live.
+
+Ensure these env vars exist:
+
+```
+ADMIN_SECRET=...
+OPENCLAW_WORKSPACE_DIR=/home/ubuntu/.openclaw/workspace
+```
+
+Then in the Admin UI:
+- `/chat` to talk to the agent
+- `/skills` to edit skills and sync to OpenClaw workspace
+
+Skills updates are read on every chat request and every cycle run, so no restart is needed.
 
 ## Part 6: Connect Social Platforms
 
@@ -459,3 +598,105 @@ curl -X POST https://agent.synth.xyz/api/control \
 - Leave `autoDeployMainnet` set to `false` until you are confident.
 - Keep your deployer key private and never commit it.
 - Only run one production deploy per day.
+
+---
+
+# If You Already Have OpenClaw on VPS + Vercel Deployed
+
+Follow this exact checklist to finish production readiness.
+
+## Step 1: Pull the Latest Code
+
+```
+cd ~/synth/synth
+git pull
+pnpm install
+```
+
+## Step 2: Refresh the OpenClaw Workspace
+
+```
+cp -r ~/synth/synth/packages/agent/* ~/.openclaw/workspace/
+```
+
+This ensures `SOUL.md`, `USER.md`, `TOOLS.md`, and new skills are in the workspace.
+
+## Step 3: Turn On Perplexity Search (OpenRouter Key Only)
+
+Edit `~/.openclaw/openclaw.json` and ensure:
+
+```json
+{
+  "tools": {
+    "web": {
+      "search": {
+        "enabled": true,
+        "provider": "perplexity",
+        "perplexity": { "model": "perplexity/sonar-pro" }
+      },
+      "fetch": { "enabled": true }
+    }
+  }
+}
+```
+
+Restart the gateway:
+
+```
+systemctl --user restart openclaw-gateway.service
+openclaw status
+```
+
+## Step 4: Restart the Agent
+
+```
+sudo systemctl restart synth-agent
+sudo systemctl status synth-agent --no-pager
+```
+
+## Step 5: Verify Health
+
+```
+curl https://agent.synthclaw.xyz/health
+curl https://agent.synthclaw.xyz/status
+```
+
+## Step 6: Run One Manual Cycle
+
+```
+cd ~/synth/synth
+pnpm --filter @synth/agent run cycle
+```
+
+Confirm logs show:
+- decision created
+- repo created
+- Sepolia deployment success
+- social post generated (if keys present)
+
+## Step 7: Deploy Suggestions Contract (Still Pending)
+
+```
+cd ~/synth/synth/packages/contracts
+forge script script/DeploySuggestions.s.sol:DeploySuggestions \
+  --rpc-url $BASE_SEPOLIA_RPC \
+  --broadcast \
+  --verify
+```
+
+Then update Vercel Web app env:
+
+```
+NEXT_PUBLIC_SUGGESTIONS_ADDRESS=<sepolia address>
+```
+
+## Step 8: When Ready, Deploy Suggestions to Mainnet
+
+```
+forge script script/DeploySuggestions.s.sol:DeploySuggestions \
+  --rpc-url $BASE_RPC \
+  --broadcast \
+  --verify
+```
+
+Update Vercel Web env again with the mainnet address and redeploy.

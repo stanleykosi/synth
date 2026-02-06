@@ -1,0 +1,43 @@
+.controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-lg);
+}
+
+.filters,
+.sort {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.filter,
+.filterActive {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.filterActive {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-lg);
+}
+
+.empty {
+  text-align: center;
+  color: var(--text-muted);
+  margin-top: var(--space-lg);
+}

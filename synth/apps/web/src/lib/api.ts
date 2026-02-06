@@ -6,8 +6,14 @@ export interface Drop {
   contractAddress: string;
   githubUrl: string;
   webappUrl?: string;
+  explorerUrl?: string;
+  network?: string;
   deployedAt: string;
   trend: string;
+  trendSource?: string;
+  trendScore?: number;
+  txHash?: string;
+  gasCostEth?: string;
 }
 
 export interface TrendItem {
@@ -23,6 +29,8 @@ export interface Metrics {
   contractsByType: Record<'token' | 'nft' | 'dapp' | 'contract', number>;
   suggestionsReceived: number;
   suggestionsBuilt: number;
+  githubStars?: number;
+  gasSpentEth?: string;
 }
 
 const SERVER_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.SITE_URL || 'https://synthclaw.xyz';

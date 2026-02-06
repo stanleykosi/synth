@@ -2,6 +2,7 @@ import { TwitterApi } from 'twitter-api-v2';
 import { Client, GatewayIntentBits } from 'discord.js';
 import type { DropRecord, TrendSignal } from '../core/types.js';
 import { log } from '../core/logger.js';
+import { generateSocialCopy } from './social.js';
 
 interface BroadcastInput {
   baseDir: string;
@@ -10,10 +11,11 @@ interface BroadcastInput {
 }
 
 function buildThread(drop: DropRecord, trend: TrendSignal): string[] {
+  const explorer = drop.explorerUrl ?? `https://basescan.org/address/${drop.contractAddress}`;
   return [
     `SYNTH drop: ${drop.name}\n\nSignal: ${trend.summary}`,
     `What shipped: ${drop.description}`,
-    `Contract: ${drop.contractAddress}`,
+    `Contract: ${drop.contractAddress}\nExplorer: ${explorer}`,
     `Repo: ${drop.githubUrl}`,
     drop.webappUrl ? `Web: ${drop.webappUrl}` : 'Web: not applicable',
     'Share feedback or submit a new suggestion in the SYNTH dashboard.'
@@ -21,11 +23,15 @@ function buildThread(drop: DropRecord, trend: TrendSignal): string[] {
 }
 
 export async function broadcastDrop(input: BroadcastInput) {
-  const thread = buildThread(input.drop, input.trend);
+  const generated = await generateSocialCopy({ drop: input.drop, trend: input.trend });
+  const thread = generated?.thread && generated.thread.length > 0
+    ? generated.thread
+    : buildThread(input.drop, input.trend);
+  const farcaster = generated?.farcaster || thread[0];
 
   await Promise.all([
     postTwitterThread(input.baseDir, thread),
-    postFarcaster(input.baseDir, thread[0]),
+    postFarcaster(input.baseDir, farcaster),
     postDiscord(input.baseDir, input.drop, thread[0])
   ]);
 }

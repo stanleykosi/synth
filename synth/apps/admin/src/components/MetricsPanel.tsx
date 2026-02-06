@@ -8,6 +8,11 @@ interface MetricsData {
   contractsByType: Record<'token' | 'nft' | 'dapp' | 'contract', number>;
   suggestionsReceived: number;
   suggestionsBuilt: number;
+  githubStars?: number;
+  gasSpentEth?: string;
+  rateLimits?: {
+    github?: { remaining: number; limit: number; reset: string };
+  };
 }
 
 export function MetricsPanel() {
@@ -48,6 +53,14 @@ export function MetricsPanel() {
       <div className={styles.card}>
         <span className={styles.value}>{metrics.suggestionsBuilt}</span>
         <span className={styles.label}>Suggestions Built</span>
+      </div>
+      <div className={styles.card}>
+        <span className={styles.value}>{metrics.githubStars ?? 0}</span>
+        <span className={styles.label}>GitHub Stars</span>
+      </div>
+      <div className={styles.card}>
+        <span className={styles.value}>{metrics.gasSpentEth ?? '0.000000'}</span>
+        <span className={styles.label}>Gas Spent (ETH)</span>
       </div>
     </div>
   );

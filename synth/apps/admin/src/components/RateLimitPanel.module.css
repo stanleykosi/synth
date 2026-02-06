@@ -1,0 +1,19 @@
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  font-size: 0.9rem;
+}
+
+.empty {
+  color: var(--text-muted);
+  margin-top: var(--space-sm);
+}

@@ -8,7 +8,7 @@ export interface TrendSignal {
   capturedAt: string;
   url?: string;
   engagement?: number;
-  meta?: Record<string, string | number | boolean>;
+  meta?: Record<string, unknown>;
 }
 
 export type DropType = 'token' | 'nft' | 'dapp' | 'contract';
@@ -21,8 +21,16 @@ export interface DropRecord {
   contractAddress: string;
   githubUrl: string;
   webappUrl?: string;
+  explorerUrl?: string;
+  network?: string;
   deployedAt: string;
   trend: string;
+  trendSource?: TrendSource;
+  trendScore?: number;
+  txHash?: string;
+  gasUsed?: string;
+  gasPrice?: string;
+  gasCostEth?: string;
   status: 'planned' | 'testnet' | 'mainnet' | 'failed';
 }
 
@@ -35,11 +43,52 @@ export interface AgentState {
   overrideSignalId?: string;
 }
 
+export interface EvidenceItem {
+  title: string;
+  url: string;
+  snippet?: string;
+  source?: string;
+}
+
+export interface DecisionRecord {
+  id: string;
+  createdAt: string;
+  trendId: string;
+  go: boolean;
+  dropType: DropType;
+  name: string;
+  symbol: string;
+  description: string;
+  tagline: string;
+  hero: string;
+  cta: string;
+  features: string[];
+  rationale: string;
+  confidence: number;
+  evidence: EvidenceItem[];
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  createdAt: string;
+}
+
 export interface MetricSnapshot {
   totalDrops: number;
   contractsByType: Record<DropType, number>;
   suggestionsReceived: number;
   suggestionsBuilt: number;
+  githubStars?: number;
+  gasSpentEth?: string;
+  rateLimits?: {
+    github?: {
+      remaining: number;
+      limit: number;
+      reset: string;
+    };
+  };
   walletBalanceEth?: string;
 }
 

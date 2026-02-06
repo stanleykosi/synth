@@ -20,6 +20,22 @@ export interface AgentConfig {
       type: 'rss' | 'atom';
     }>;
   };
+  research: {
+    enabled: boolean;
+    maxSignals: number;
+    resultsPerSignal: number;
+    fetchTop: number;
+  };
+  decision: {
+    enabled: boolean;
+    minScore: number;
+    minConfidence: number;
+  };
+  validation: {
+    enabled: boolean;
+    maxSignals: number;
+    weight: number;
+  };
   farcaster: {
     channels: string[];
     limit: number;
@@ -48,16 +64,51 @@ const fallbackConfig: AgentConfig = {
     mode: 'browser',
     browserProfile: 'openclaw',
     browserTarget: 'host',
-    queries: ['base chain', 'base l2'],
-    maxResults: 20
+    queries: [
+      'base chain',
+      'base l2',
+      'coinbase base',
+      'base bridge',
+      'base airdrop',
+      'base memecoin',
+      'base nft',
+      'base gaming',
+      'base social',
+      'base defi',
+      'farcaster frames',
+      'onchain social',
+      'onchain ai',
+      'autonomous agent'
+    ],
+    maxResults: 30
   },
   web: {
     enabled: true,
     maxItems: 25,
     perSourceLimit: 6,
     sources: [
-      { name: 'Base Mirror', url: 'https://base.mirror.xyz/feed/atom', type: 'atom' }
+      { name: 'Base Mirror', url: 'https://base.mirror.xyz/feed/atom', type: 'atom' },
+      { name: 'Ethereum Blog', url: 'https://blog.ethereum.org/feed.xml', type: 'rss' },
+      { name: 'Coinbase Blog', url: 'https://blog.coinbase.com/feed', type: 'rss' },
+      { name: 'CoinDesk RSS', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', type: 'rss' },
+      { name: 'Farcaster Base Channel', url: 'https://feeds.fcstr.xyz/rss/channel?url=https://warpcast.com/~/channel/base', type: 'rss' }
     ]
+  },
+  research: {
+    enabled: true,
+    maxSignals: 3,
+    resultsPerSignal: 5,
+    fetchTop: 1
+  },
+  decision: {
+    enabled: true,
+    minScore: 6,
+    minConfidence: 0.55
+  },
+  validation: {
+    enabled: true,
+    maxSignals: 6,
+    weight: 0.6
   },
   farcaster: {
     channels: ['base'],
@@ -68,7 +119,7 @@ const fallbackConfig: AgentConfig = {
     limit: 20
   },
   dune: {
-    queryIds: [2834598, 3913969, 4670978]
+    queryIds: [5737569, 6436472, 6314894, 3798745]
   },
   scoring: {
     weights: {
@@ -94,6 +145,9 @@ function mergeConfig(base: AgentConfig, overrides: Partial<AgentConfig>): AgentC
     ...overrides,
     twitter: { ...base.twitter, ...overrides.twitter },
     web: { ...base.web, ...overrides.web },
+    research: { ...base.research, ...overrides.research },
+    decision: { ...base.decision, ...overrides.decision },
+    validation: { ...base.validation, ...overrides.validation },
     farcaster: { ...base.farcaster, ...overrides.farcaster },
     discord: { ...base.discord, ...overrides.discord },
     dune: { ...base.dune, ...overrides.dune },
