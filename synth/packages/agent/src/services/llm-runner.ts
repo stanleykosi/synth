@@ -1,4 +1,5 @@
-import { invokeOpenClawTool } from './openclaw.js';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 
 type LlmTaskPayload = {
   prompt: string;
@@ -7,6 +8,8 @@ type LlmTaskPayload = {
   model: string;
   maxTokens: number;
 };
+
+const execFileAsync = promisify(execFile);
 
 function extractJson(text: string): unknown | null {
   const start = text.indexOf('{');
@@ -17,6 +20,67 @@ function extractJson(text: string): unknown | null {
   } catch {
     return null;
   }
+}
+
+function normalizeReply(payload: unknown): string {
+  if (!payload) return '';
+  if (typeof payload === 'string') return payload;
+  if (typeof payload === 'object') {
+    const data = payload as Record<string, unknown>;
+    const reply = data.reply ?? data.message ?? data.output ?? data.text;
+    if (typeof reply === 'string') return reply;
+    if (reply && typeof reply === 'object') {
+      const nested = reply as Record<string, unknown>;
+      const content = nested.content ?? nested.text;
+      if (typeof content === 'string') return content;
+    }
+  }
+  return '';
+}
+
+function buildAgentMessage(payload: LlmTaskPayload): string {
+  const schemaBlock = payload.schema ? `\nJSON schema:\n${JSON.stringify(payload.schema)}` : '';
+  return [
+    payload.prompt,
+    'You are running inside the OpenClaw agent loop with native skills enabled.',
+    'Follow the JSON schema exactly and respond with JSON only (no prose).',
+    schemaBlock,
+    'Input:',
+    JSON.stringify(payload.input)
+  ].join('\n');
+}
+
+async function runOpenClawAgent<T>(payload: LlmTaskPayload): Promise<T> {
+  const cli = process.env.OPENCLAW_CLI_PATH ?? 'openclaw';
+  const agentId = process.env.OPENCLAW_AGENT_ID ?? 'main';
+  const timeoutSec = Number(process.env.OPENCLAW_AGENT_TIMEOUT ?? '180');
+  const message = buildAgentMessage(payload);
+
+  const { stdout } = await execFileAsync(cli, [
+    'agent',
+    '--agent',
+    agentId,
+    '--message',
+    message,
+    '--json',
+    '--timeout',
+    String(timeoutSec)
+  ], {
+    env: process.env,
+    maxBuffer: 5 * 1024 * 1024
+  });
+
+  const output = stdout.trim();
+  const parsed = extractJson(output);
+  if (!parsed) {
+    throw new Error('OpenClaw agent output was not JSON.');
+  }
+  const replyText = normalizeReply(parsed);
+  const replyJson = extractJson(replyText);
+  if (!replyJson) {
+    throw new Error('OpenClaw agent reply was not valid JSON.');
+  }
+  return replyJson as T;
 }
 
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number) {
@@ -76,11 +140,7 @@ async function runOpenRouterTask<T>(payload: LlmTaskPayload): Promise<T> {
 
 export async function runLlmTask<T>(payload: LlmTaskPayload): Promise<T> {
   try {
-    return await invokeOpenClawTool<T>({
-      tool: 'llm-task',
-      action: 'json',
-      args: payload
-    });
+    return await runOpenClawAgent<T>(payload);
   } catch {
     return await runOpenRouterTask<T>(payload);
   }
