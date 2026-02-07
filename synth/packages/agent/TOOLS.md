@@ -4,6 +4,7 @@
 - Prefer `web_search` + `web_fetch` for external evidence when enabled.
 - Use `browser` only when a source requires JS or login.
 - Use `exec` only for Foundry or required build steps.
+- Keep outputs structured and JSON‑safe.
 
 ## Guardrails
 - Avoid expensive or unnecessary tool calls.

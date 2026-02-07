@@ -45,7 +45,8 @@ export async function runChat(baseDir: string, message: string, history: ChatMes
 
   const prompt = [
     'You are SYNTH, an autonomous onchain builder.',
-    'Respond to the admin operator with concise, technical guidance.',
+    'Respond to the admin operator with clear, thorough technical guidance.',
+    'If asked about capabilities or status, enumerate the full pipeline including webapp generation, contract generation, repo + Vercel deploy, and social broadcast.',
     'Use the context provided, and ask clarifying questions when needed.',
     'Output JSON only.'
   ].join('\n');
