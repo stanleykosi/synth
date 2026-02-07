@@ -60,6 +60,7 @@ Required for this setup:
 - `GITHUB_TOKEN`
 - `VERCEL_TOKEN`
 - `ADMIN_SECRET`
+- `SUGGESTIONS_OWNER_PRIVATE_KEY`
 
 Required only if you want posting:
 - `TWITTER_API_KEY`
@@ -258,6 +259,14 @@ SYNTH_LLM_MODEL=openrouter/moonshotai/kimi-k2.5
 SYNTH_LLM_MAX_TOKENS=200000
 SYNTH_CODEGEN_MODE=llm
 SYNTH_CODEGEN_MAX_TOKENS=3500
+SUGGESTIONS_OWNER_PRIVATE_KEY=
+SYNTH_MONITOR_ENABLED=true
+SYNTH_MONITOR_INTERVAL_MS=300000
+SYNTH_MONITOR_STALE_HOURS=36
+SYNTH_MONITOR_STUCK_MINUTES=120
+SYNTH_MONITOR_QUEUE_THRESHOLD=3
+SYNTH_MONITOR_COOLDOWN_MINUTES=60
+SYNTH_ALERT_WEBHOOK_URL=
 BASESCAN_API_KEY=
 DEPLOYER_PRIVATE_KEY=
 DEPLOYER_ADDRESS=
@@ -513,10 +522,14 @@ Create `packages/contracts/.env`:
 ```
 DEPLOYER_PRIVATE_KEY=
 DEPLOYER_ADDRESS=
+SUGGESTIONS_OWNER=
 BASE_RPC=https://mainnet.base.org
 BASE_SEPOLIA_RPC=https://sepolia.base.org
 BASESCAN_API_KEY=
 ```
+
+Set `SUGGESTIONS_OWNER` to the wallet address that should own the Suggestions contract (usually your admin wallet).
+If you already deployed an older version, redeploy to set the correct owner.
 
 ### Step 2: Deploy to Base Sepolia
 
@@ -561,7 +574,7 @@ curl https://agent.synth.xyz/api/status
 curl -X POST https://agent.synth.xyz/api/control \
   -H "Content-Type: application/json" \
   -H "x-admin-secret: <ADMIN_SECRET>" \
-  -d '{"action":"run"}'
+  -d '{"action":"run","force":true}'
 ```
 
 3. Pause the agent:

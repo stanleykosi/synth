@@ -27,7 +27,7 @@ contract SynthSuggestions is Ownable, ReentrancyGuard {
     event StakeReturned(uint256 indexed id, address indexed submitter, uint256 amount);
 
     /// @notice Initializes the contract with the deployer as owner
-    constructor() Ownable(msg.sender) {}
+    constructor(address initialOwner) Ownable(initialOwner) {}
 
     /// @notice Submit a suggestion with a minimum stake
     /// @param content The suggestion content (1-1000 chars)

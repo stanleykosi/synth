@@ -7,7 +7,8 @@ import { loadDrops, loadLogs, loadState, loadTrends, saveState, saveDrops, loadD
 import { buildMetrics } from '../core/metrics.js';
 import { getSuggestionCount, getWalletStatus } from './chain.js';
 import { fetchGithubStarsTotal, fetchGithubRateLimit } from './github.js';
-import { runDailyCycle } from '../core/pipeline.js';
+import { enqueueRun, clearQueue, getQueueState } from '../core/queue.js';
+import { clearArtifacts } from './artifacts.js';
 import { log } from '../core/logger.js';
 import type { DropRecord } from '../core/types.js';
 import { runChat } from './chat.js';
@@ -141,6 +142,7 @@ export function startServer(baseDir: string, config: AgentConfig) {
       contractAddress: payload.contractAddress ?? '',
       contractType: payload.contractType,
       appMode: payload.appMode,
+      builder: payload.builder,
       githubUrl: payload.githubUrl,
       webappUrl: payload.webappUrl,
       explorerUrl: payload.explorerUrl,
@@ -149,6 +151,7 @@ export function startServer(baseDir: string, config: AgentConfig) {
       trend: payload.trend ?? 'manual',
       trendSource: payload.trendSource,
       trendScore: payload.trendScore,
+      trendEngagement: payload.trendEngagement,
       txHash: payload.txHash,
       gasUsed: payload.gasUsed,
       gasPrice: payload.gasPrice,
@@ -184,6 +187,11 @@ export function startServer(baseDir: string, config: AgentConfig) {
   app.get('/api/decisions', async (_req, res) => {
     const decisions = await loadDecisions(baseDir);
     res.json(decisions);
+  });
+
+  app.get('/api/queue', async (_req, res) => {
+    const queue = await getQueueState(baseDir);
+    res.json(queue);
   });
 
   app.get('/api/decision', async (_req, res) => {
@@ -255,7 +263,7 @@ export function startServer(baseDir: string, config: AgentConfig) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { action, signalId } = req.body as { action?: string; signalId?: string };
+    const { action, signalId, force } = req.body as { action?: string; signalId?: string; force?: boolean };
     const state = await loadState(baseDir);
 
     if (action === 'pause') {
@@ -273,7 +281,12 @@ export function startServer(baseDir: string, config: AgentConfig) {
     }
 
     if (action === 'run') {
-      await runDailyCycle(baseDir);
+      await enqueueRun(baseDir, {
+        requestedBy: 'admin',
+        reason: 'Manual admin run',
+        force: Boolean(force),
+        source: 'admin'
+      });
       const updated = await loadState(baseDir);
       return res.json(updated);
     }
@@ -296,8 +309,15 @@ export function startServer(baseDir: string, config: AgentConfig) {
         lastError: null
       };
       await saveState(baseDir, next);
+      await clearQueue(baseDir);
       await log(baseDir, 'info', 'Run lock cleared via admin.');
       return res.json(next);
+    }
+
+    if (action === 'clear-queue') {
+      await clearQueue(baseDir);
+      await log(baseDir, 'info', 'Queue cleared via admin.');
+      return res.json({ ok: true });
     }
 
     if (action === 'clear-drops') {
@@ -318,7 +338,9 @@ export function startServer(baseDir: string, config: AgentConfig) {
         saveTrends(baseDir, []),
         saveDecisions(baseDir, []),
         saveLogs(baseDir, []),
-        saveChat(baseDir, [])
+        saveChat(baseDir, []),
+        clearQueue(baseDir),
+        clearArtifacts(baseDir)
       ]);
       const next = { ...state, currentPhase: 'idle', lastResult: 'skipped', lastError: null };
       await saveState(baseDir, next);

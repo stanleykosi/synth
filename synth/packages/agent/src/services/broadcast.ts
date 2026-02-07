@@ -26,7 +26,7 @@ function buildThread(drop: DropRecord, trend: TrendSignal): string[] {
   ];
 }
 
-export async function broadcastDrop(input: BroadcastInput) {
+export async function broadcastDrop(input: BroadcastInput): Promise<{ thread: string[]; farcaster: string }> {
   const generated = await generateSocialCopy({
     drop: input.drop,
     trend: input.trend,
@@ -39,9 +39,17 @@ export async function broadcastDrop(input: BroadcastInput) {
   const farcaster = generated?.farcaster || thread[0];
 
   await Promise.all([
-    postTwitterThread(input.baseDir, thread),
-    postFarcaster(input.baseDir, farcaster)
+    postTwitterThread(input.baseDir, thread).catch(async (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      await log(input.baseDir, 'warn', `Twitter broadcast failed: ${message}`);
+    }),
+    postFarcaster(input.baseDir, farcaster).catch(async (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      await log(input.baseDir, 'warn', `Farcaster broadcast failed: ${message}`);
+    })
   ]);
+
+  return { thread, farcaster };
 }
 
 async function postTwitterThread(baseDir: string, thread: string[]) {

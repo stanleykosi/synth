@@ -42,6 +42,11 @@ export interface AgentConfig {
   };
   dune: {
     queryIds: number[];
+    refreshOnRun: boolean;
+    maxAgeHours: number;
+    maxWaitMs: number;
+    pollIntervalMs: number;
+    allowPartialResults: boolean;
   };
   scoring: {
     weights: Record<string, number>;
@@ -55,6 +60,7 @@ export interface AgentConfig {
     maxSignals: number;
     dailyRunHourUTC: number;
     autoDeployMainnet: boolean;
+    minCycleHours: number;
   };
 }
 
@@ -115,7 +121,12 @@ const fallbackConfig: AgentConfig = {
     limit: 20
   },
   dune: {
-    queryIds: [5737569, 6436472, 6314894, 3798745]
+    queryIds: [5737569, 6436472, 6314894, 3798745],
+    refreshOnRun: true,
+    maxAgeHours: 12,
+    maxWaitMs: 20000,
+    pollIntervalMs: 2000,
+    allowPartialResults: true
   },
   scoring: {
     weights: {
@@ -134,7 +145,8 @@ const fallbackConfig: AgentConfig = {
   pipeline: {
     maxSignals: 50,
     dailyRunHourUTC: 9,
-    autoDeployMainnet: false
+    autoDeployMainnet: false,
+    minCycleHours: 24
   }
 };
 

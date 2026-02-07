@@ -17,7 +17,7 @@ contract SynthSuggestionsTest is Test {
         bob = vm.addr(3);
 
         vm.prank(owner);
-        suggestions = new SynthSuggestions();
+        suggestions = new SynthSuggestions(owner);
     }
 
     function testSubmitStoresSuggestion() public {

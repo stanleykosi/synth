@@ -17,6 +17,9 @@ export function memoryPaths(baseDir: string) {
     stateJson: path.join(memoryDir, 'state.json'),
     decisionsJson: path.join(memoryDir, 'decisions.json'),
     chatJson: path.join(memoryDir, 'chat.json'),
+    queueJson: path.join(memoryDir, 'queue.json'),
+    artifactsDir: path.join(memoryDir, 'artifacts'),
+    monitorJson: path.join(memoryDir, 'monitor.json'),
     trendsMd: path.join(memoryDir, 'trends.md'),
     dropsMd: path.join(memoryDir, 'drops.md')
   };

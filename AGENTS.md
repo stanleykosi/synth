@@ -8,7 +8,7 @@
 
 **Name**: SYNTH  
 **Tagline**: "From Noise to Signal"  
-**What it does**: Autonomous AI agent that monitors trends (Twitter, Farcaster, Discord, onchain) and deploys products (tokens, NFTs, dApps) on Base L2 daily.
+**What it does**: Autonomous AI agent that monitors trends (Twitter, Farcaster, onchain) and deploys products (tokens, NFTs, dApps) on Base L2 daily.
 
 ---
 
@@ -660,7 +660,7 @@ Transform market noise into tangible onchain products on Base L2.
 - Slightly edgy, crypto-native voice
 
 ## Capabilities
-1. Monitor Twitter, Farcaster, Discord, and onchain data for trends
+1. Monitor Twitter, Farcaster, and onchain data for trends
 2. Analyze and score opportunities
 3. Generate and deploy smart contracts
 4. Build and deploy web applications

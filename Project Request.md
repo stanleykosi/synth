@@ -1,7 +1,7 @@
 # SYNTH
 
 ## Project Description
- SYNTH is a fully autonomous onchain app launchpad powered by OpenClaw. The AI agent continuously monitors Twitter/X, Farcaster, Discord, and onchain data sources to detect emerging community needs and trends. When it identifies a compelling opportunity, it autonomously designs, builds, tests, and deploys the appropriate solution—whether an ERC-20 token, NFT collection, custom smart contract, or complete web application with smart contract integration—on the Base L2 blockchain.
+ SYNTH is a fully autonomous onchain app launchpad powered by OpenClaw. The AI agent continuously monitors Twitter/X, Farcaster, and onchain data sources to detect emerging community needs and trends. When it identifies a compelling opportunity, it autonomously designs, builds, tests, and deploys the appropriate solution—whether an ERC-20 token, NFT collection, custom smart contract, or complete web application with smart contract integration—on the Base L2 blockchain.
 
 The agent operates on a rigorous pipeline: trend analysis → design decision → development → testnet verification → mainnet deployment → social announcement. Each launch includes a Twitter thread explainer cross-posted to Farcaster, with links to the open-source GitHub repository and verified contract on Basescan.
 
@@ -23,7 +23,6 @@ A futuristic public dashboard showcases all deployments and accepts community su
 - [ ] Multi-platform monitoring using OpenClaw browser + web tools
     - [ ] Twitter/X: Scrape crypto Twitter, Base hashtags, influential accounts
     - [ ] Farcaster: Monitor /base channel, trending casts, builder discussions
-    - [ ] Discord: Monitor dedicated project Discord server
     - [ ] Onchain: Use Dune Analytics, The Graph (free tiers), RPC queries
 - [ ] Open-ended detection—full agent autonomy on what to pursue
 - [ ] Validation framework for trend selection
@@ -32,7 +31,7 @@ A futuristic public dashboard showcases all deployments and accepts community su
     - [ ] Technical feasibility (can this be built in a day?)
     - [ ] Gap analysis (does a good solution already exist?)
     - [ ] Originality score (how novel is this idea?)
-- [ ] Community suggestions integration (dashboard + Discord)
+- [ ] Community suggestions integration (dashboard)
 - [ ] Daily trend digest saved to OpenClaw memory
 
 ### Smart Contract Development & Deployment
@@ -77,7 +76,6 @@ A futuristic public dashboard showcases all deployments and accepts community su
     - [ ] Vercel web app link (if applicable)
     - [ ] Community call-to-action
 - [ ] Cross-post to Farcaster (via Neynar API)
-- [ ] Post to project Discord #launches channel
 
 ### Public Dashboard
 - [ ] Launch log with all deployments
@@ -159,7 +157,7 @@ A futuristic public dashboard showcases all deployments and accepts community su
 - Memory: Launch history, trend logs, learnings
 - Skills: Custom skills for contract deployment, social posting
 - Exec: Foundry for compilation/deployment
-- Browser: Trend scraping (Twitter, Farcaster, Discord)
+- Browser: Trend scraping (Twitter, Farcaster)
 - Cron: Daily deployment cycle
 - Queue: Serialize deployment pipeline
 
@@ -188,5 +186,4 @@ A futuristic public dashboard showcases all deployments and accepts community su
 - **Fully autonomous** — no human approval in deployment loop
 - **Open source everything** — MIT license default
 - **Initial budget:** $10 ETH on Base + hosting
-- **Discord:** Dedicated server with #suggestions + #launches
 - **Admin panel:** Full oversight without blocking autonomy

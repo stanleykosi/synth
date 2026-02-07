@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 
 interface ControlPayload {
-  action: 'pause' | 'resume' | 'run' | 'override' | 'unlock' | 'clear-drops' | 'clear-chat' | 'reset-memory';
+  action: 'pause' | 'resume' | 'run' | 'override' | 'unlock' | 'clear-drops' | 'clear-chat' | 'reset-memory' | 'clear-queue';
   signalId?: string;
+  force?: boolean;
 }
 
 function isValidPayload(payload: unknown): payload is ControlPayload {
@@ -15,8 +16,12 @@ function isValidPayload(payload: unknown): payload is ControlPayload {
     data.action === 'unlock' ||
     data.action === 'clear-drops' ||
     data.action === 'clear-chat' ||
-    data.action === 'reset-memory'
+    data.action === 'reset-memory' ||
+    data.action === 'clear-queue'
   ) {
+    if (data.action === 'run' && data.force !== undefined && typeof data.force !== 'boolean') {
+      return false;
+    }
     return true;
   }
   if (data.action === 'override') {
@@ -47,7 +52,8 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           action: payload.action,
-          signalId: payload.signalId
+          signalId: payload.signalId,
+          force: payload.force
         })
       });
       if (res.ok) {

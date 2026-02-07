@@ -5,6 +5,8 @@ import { startServer } from './services/server.js';
 import { startScheduler } from './services/scheduler.js';
 import { runDailyCycle } from './core/pipeline.js';
 import { log } from './core/logger.js';
+import { processQueue } from './core/queue.js';
+import { startMonitor } from './services/monitor.js';
 
 const baseDir = resolveAgentBase();
 loadEnvironment(baseDir);
@@ -20,6 +22,8 @@ if (mode === 'cycle') {
   await runDailyCycle(baseDir);
 } else {
   startServer(baseDir, config);
+  await processQueue(baseDir);
+  startMonitor(baseDir);
   const enableScheduler = process.env.SYNTH_ENABLE_SCHEDULER === 'true';
   if (enableScheduler) {
     startScheduler(baseDir, config);

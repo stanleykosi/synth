@@ -6,6 +6,12 @@ export interface Drop {
   contractAddress: string;
   contractType?: 'erc20' | 'erc721' | 'erc1155' | 'none';
   appMode?: 'onchain' | 'offchain';
+  builder?: {
+    address: string;
+    stakeEth?: number;
+    suggestionId?: string;
+    stakeReturned?: boolean;
+  };
   githubUrl: string;
   webappUrl?: string;
   explorerUrl?: string;
@@ -14,6 +20,7 @@ export interface Drop {
   trend: string;
   trendSource?: string;
   trendScore?: number;
+  trendEngagement?: number;
   txHash?: string;
   gasCostEth?: string;
 }

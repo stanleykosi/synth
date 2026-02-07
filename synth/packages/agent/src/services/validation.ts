@@ -43,6 +43,8 @@ export async function validateTrends(input: {
   signals: TrendSignal[];
   evidence: Record<string, EvidenceItem[]>;
   config: AgentConfig;
+  skills?: string;
+  context?: string;
 }): Promise<Record<string, ValidationResult>> {
   if (!input.config.validation.enabled) return {};
 
@@ -54,7 +56,9 @@ export async function validateTrends(input: {
     'You are SYNTH, validating trend candidates.',
     'Score each trend on: influencer weight, engagement velocity, feasibility, gap, originality.',
     'Use evidence when available.',
-    'Return JSON only with composite score (0-10) and a short rationale.'
+    'Return JSON only with composite score (0-10) and a short rationale.',
+    input.skills ? 'Use the skills guidance provided when relevant.' : '',
+    input.context ? 'Follow the persona and operator preferences provided.' : ''
   ].join('\n');
 
   const payload = {

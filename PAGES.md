@@ -90,7 +90,7 @@ export default async function HomePage() {
             <div className={styles.step}>
               <div className={styles.stepNumber}>01</div>
               <h3>Signal Detection</h3>
-              <p>SYNTH monitors Twitter, Farcaster, Discord, and onchain data for emerging trends.</p>
+              <p>SYNTH monitors Twitter, Farcaster, and onchain data for emerging trends.</p>
             </div>
             <div className={styles.step}>
               <div className={styles.stepNumber}>02</div>

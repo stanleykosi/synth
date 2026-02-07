@@ -124,7 +124,8 @@ export async function generateDecision(input: {
         meta: {
           stakeEth: typeof signal.meta?.stakeEth === 'number' ? signal.meta?.stakeEth : undefined,
           submitter: typeof signal.meta?.submitter === 'string' ? signal.meta?.submitter : undefined,
-          queryId: typeof signal.meta?.queryId === 'number' ? signal.meta?.queryId : undefined
+          queryId: typeof signal.meta?.queryId === 'number' ? signal.meta?.queryId : undefined,
+          analysis: signal.meta?.analysis ?? undefined
         }
       })),
       skills: input.skills ?? '',

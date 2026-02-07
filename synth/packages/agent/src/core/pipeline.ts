@@ -1,10 +1,11 @@
 import path from 'path';
 import fs from 'fs/promises';
 import { loadConfig } from './config.js';
+import type { AgentConfig } from './config.js';
 import { finalizeScores } from './scoring.js';
-import { loadDrops, loadState, saveDrops, saveState, appendMarkdown, memoryPaths, saveTrends, loadDecisions, saveDecisions } from './memory.js';
+import { loadDrops, loadState, saveDrops, saveState, appendMarkdown, memoryPaths, saveTrends, loadDecisions, saveDecisions, loadTrends } from './memory.js';
 import { log } from './logger.js';
-import type { DropRecord, TrendSignal, DropType, ContractType, AppMode } from './types.js';
+import type { DropRecord, TrendSignal, DropType, ContractType, AppMode, AgentState } from './types.js';
 import { fetchTwitterSignals } from '../sources/twitter.js';
 import { fetchWebSignals } from '../sources/web.js';
 import { fetchFarcasterSignals } from '../sources/farcaster.js';
@@ -23,6 +24,8 @@ import { buildSkillsContext } from '../services/skills.js';
 import { validateTrends } from '../services/validation.js';
 import { buildAgentContext } from '../services/context.js';
 import { generateDropContent } from '../services/content.js';
+import { markSuggestionReviewed } from '../services/chain.js';
+import { saveArtifacts } from '../services/artifacts.js';
 
 function nowIso() {
   return new Date().toISOString();
@@ -149,6 +152,46 @@ function selectHighestStakeSuggestion(signals: TrendSignal[]): TrendSignal | nul
   return suggestions[0] ?? null;
 }
 
+function parseSuggestionId(signal: TrendSignal): bigint | null {
+  if (signal.source !== 'suggestion') return null;
+  const raw = signal.id.replace('suggestion-', '').trim();
+  if (!raw) return null;
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric)) return null;
+  return BigInt(Math.floor(numeric));
+}
+
+async function buildMemoryContext(baseDir: string): Promise<string> {
+  const [drops, decisions, trends] = await Promise.all([
+    loadDrops(baseDir),
+    loadDecisions(baseDir),
+    loadTrends(baseDir)
+  ]);
+
+  const recentDrops = drops.slice(0, 3).map((drop) => (
+    `${drop.name} (${drop.type}) ${drop.network ?? ''} ${drop.contractAddress ? drop.contractAddress.slice(0, 8) + '…' : ''}`.trim()
+  ));
+  const recentDecisions = decisions.slice(0, 3).map((decision) => (
+    `${decision.name} (${decision.dropType}) confidence ${Math.round(decision.confidence * 100)}%`
+  ));
+  const recentTrends = trends.slice(0, 3).map((trend) => (
+    `${trend.summary.slice(0, 120)} (${trend.source}, ${trend.score.toFixed(1)})`
+  ));
+
+  const sections: string[] = [];
+  if (recentDrops.length > 0) {
+    sections.push(`Recent drops: ${recentDrops.join(' | ')}`);
+  }
+  if (recentDecisions.length > 0) {
+    sections.push(`Recent decisions: ${recentDecisions.join(' | ')}`);
+  }
+  if (recentTrends.length > 0) {
+    sections.push(`Recent trends: ${recentTrends.join(' | ')}`);
+  }
+
+  return sections.join('\n');
+}
+
 function buildStakeOverrideDecision(signal: TrendSignal, reason: string) {
   const summary = cleanSignalSummary(signal.summary);
   const name = generateDropName(signal);
@@ -257,11 +300,18 @@ async function ensureTemplateFiles(baseDir: string) {
   await fs.mkdir(path.dirname(trendsMd), { recursive: true });
 }
 
-export async function runDailyCycle(baseDir: string) {
+export async function runDailyCycle(
+  baseDir: string,
+  options?: { force?: boolean; runId?: string; source?: string; reason?: string }
+) {
   await ensureTemplateFiles(baseDir);
   const config = await loadConfig(baseDir);
   const state = await loadState(baseDir);
   let currentState = state;
+  let selectedSuggestionId: bigint | null = null;
+  let selectedSuggestionMeta: { submitter?: string; stakeEth?: number } | null = null;
+  let suggestionReviewed = false;
+  let reviewSuggestion: (built: boolean, note: string) => Promise<void> = async () => {};
   if (state.paused) {
     await log(baseDir, 'warn', 'Agent is paused. Skipping cycle.');
     return;
@@ -272,17 +322,91 @@ export async function runDailyCycle(baseDir: string) {
   }
 
   try {
-    currentState = { ...currentState, currentPhase: 'signal-detection' };
-    await saveState(baseDir, currentState);
+    const setPhase = async (phase: AgentState['currentPhase']) => {
+      currentState = {
+        ...currentState,
+        currentPhase: phase,
+        phaseStartedAt: nowIso(),
+        runId: options?.runId ?? currentState.runId,
+        runStartedAt: currentState.runStartedAt ?? nowIso()
+      };
+      await saveState(baseDir, currentState);
+    };
 
-    const [twitter, web, farcaster, onchain, graph, suggestions] = await Promise.all([
-      fetchTwitterSignals(config),
-      fetchWebSignals(config),
-      fetchFarcasterSignals(config),
-      fetchOnchainSignals(config),
-      fetchGraphSignals(config),
-      fetchSuggestionSignals(config)
-    ]);
+    const setSelectedSuggestion = (signal: TrendSignal | null | undefined) => {
+      if (!signal || signal.source !== 'suggestion') return;
+      selectedSuggestionId = parseSuggestionId(signal);
+      selectedSuggestionMeta = {
+        submitter: typeof signal.meta?.submitter === 'string' ? signal.meta.submitter : undefined,
+        stakeEth: typeof signal.meta?.stakeEth === 'number' ? signal.meta.stakeEth : undefined
+      };
+    };
+
+    reviewSuggestion = async (built: boolean, note: string) => {
+      if (!selectedSuggestionId || suggestionReviewed) return;
+      try {
+        await markSuggestionReviewed({ suggestionId: selectedSuggestionId, built });
+        suggestionReviewed = true;
+        await log(baseDir, 'info', `Suggestion ${selectedSuggestionId.toString()} reviewed (${note}).`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await log(baseDir, 'warn', `Failed to mark suggestion reviewed: ${message}`);
+      }
+    };
+
+    const minCycleHours = Math.max(1, config.pipeline.minCycleHours || 24);
+    const forceCycle = Boolean(options?.force);
+    if (!forceCycle && state.lastRunAt) {
+      const lastRun = Date.parse(state.lastRunAt);
+      if (!Number.isNaN(lastRun)) {
+        const elapsedHours = (Date.now() - lastRun) / 3_600_000;
+        if (elapsedHours < minCycleHours) {
+          await log(baseDir, 'info', `Skipping cycle: last run ${elapsedHours.toFixed(1)}h ago (< ${minCycleHours}h).`);
+          currentState = {
+            ...currentState,
+            currentPhase: 'idle',
+            lastResult: 'skipped',
+            phaseStartedAt: nowIso(),
+            runId: undefined,
+            runStartedAt: undefined
+          };
+          await saveState(baseDir, currentState);
+          return;
+        }
+      }
+    }
+
+    const agentContext = await buildAgentContext(baseDir);
+    const memoryContext = await buildMemoryContext(baseDir);
+    const llmContext = [agentContext, memoryContext].filter(Boolean).join('\n\n');
+    const skills = await buildSkillsContext(baseDir);
+    const trendSkills = await buildSkillsContext(baseDir, { include: ['trend-detector', 'dune-analyst'] });
+
+    await setPhase('signal-detection');
+
+    const sources = [
+      { name: 'twitter', fetch: fetchTwitterSignals(config) },
+      { name: 'web', fetch: fetchWebSignals(config) },
+      { name: 'farcaster', fetch: fetchFarcasterSignals(config) },
+      { name: 'onchain', fetch: fetchOnchainSignals(config, { skills: trendSkills, context: llmContext }) },
+      { name: 'graph', fetch: fetchGraphSignals(config) },
+      { name: 'suggestion', fetch: fetchSuggestionSignals(config) }
+    ];
+
+    const settled = await Promise.allSettled(sources.map((source) => source.fetch));
+    const signalBuckets: TrendSignal[][] = [];
+    for (let i = 0; i < settled.length; i += 1) {
+      const result = settled[i];
+      if (result.status === 'fulfilled') {
+        signalBuckets.push(result.value);
+      } else {
+        const message = result.reason instanceof Error ? result.reason.message : String(result.reason);
+        await log(baseDir, 'warn', `Signal source ${sources[i].name} failed: ${message}`);
+        signalBuckets.push([]);
+      }
+    }
+
+    const [twitter, web, farcaster, onchain, graph, suggestions] = signalBuckets;
 
     const signals = finalizeScores([
       ...twitter,
@@ -320,7 +444,13 @@ export async function runDailyCycle(baseDir: string) {
     }
 
     const evidenceMap = await buildEvidence(deduped, config);
-    const validations = await validateTrends({ signals: deduped, evidence: evidenceMap, config });
+    const validations = await validateTrends({
+      signals: deduped,
+      evidence: evidenceMap,
+      config,
+      skills: trendSkills,
+      context: llmContext
+    });
 
     const enriched = deduped.map((signal) => {
       const validation = validations[signal.id];
@@ -343,8 +473,6 @@ export async function runDailyCycle(baseDir: string) {
     await saveTrends(baseDir, ranked);
     await appendMarkdown(memoryPaths(baseDir).trendsMd, `- ${nowIso()} captured ${ranked.length} signals`);
 
-    const agentContext = await buildAgentContext(baseDir);
-    const skills = await buildSkillsContext(baseDir);
     const prioritySuggestion = selectPrioritySuggestion(ranked, config.scoring.stakePriorityEth || 0.1);
     const highestStakeSuggestion = selectHighestStakeSuggestion(ranked);
     const decision = await generateDecision({
@@ -352,7 +480,7 @@ export async function runDailyCycle(baseDir: string) {
       evidence: evidenceMap,
       config,
       skills,
-      context: agentContext,
+      context: llmContext,
       prioritySignalId: prioritySuggestion?.id,
       prioritySignal: prioritySuggestion
         ? {
@@ -388,20 +516,37 @@ export async function runDailyCycle(baseDir: string) {
 
     if (effectiveDecision && (!effectiveDecision.go || effectiveDecision.confidence < config.decision.minConfidence)) {
       await log(baseDir, 'info', `Decision opted out (confidence ${effectiveDecision.confidence}).`);
-      currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'skipped' };
+      setSelectedSuggestion(topSignal);
+      await reviewSuggestion(false, 'decision opted out');
+      currentState = {
+        ...currentState,
+        currentPhase: 'idle',
+        lastRunAt: nowIso(),
+        lastResult: 'skipped',
+        phaseStartedAt: nowIso(),
+        runId: undefined,
+        runStartedAt: undefined
+      };
       await saveState(baseDir, currentState);
       return;
     }
     if (!topSignal) {
       await log(baseDir, 'warn', 'No signals found.');
-      currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'skipped' };
+      currentState = {
+        ...currentState,
+        currentPhase: 'idle',
+        lastRunAt: nowIso(),
+        lastResult: 'skipped',
+        phaseStartedAt: nowIso(),
+        runId: undefined,
+        runStartedAt: undefined
+      };
       await saveState(baseDir, currentState);
       return;
     }
 
     currentState = overrideId ? { ...currentState, overrideSignalId: undefined } : currentState;
-    currentState = { ...currentState, currentPhase: 'decision' };
-    await saveState(baseDir, currentState);
+    await setPhase('decision');
     if (!effectiveDecision && topSignal && topSignal.score < config.decision.minScore) {
       if (highestStakeSuggestion) {
         effectiveDecision = buildStakeOverrideDecision(
@@ -412,11 +557,23 @@ export async function runDailyCycle(baseDir: string) {
         await log(baseDir, 'info', `Stake fallback selected (${highestStakeSuggestion.id}).`);
       } else {
         await log(baseDir, 'info', `Top signal score ${topSignal.score} below threshold ${config.decision.minScore}.`);
-        currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'skipped' };
+        setSelectedSuggestion(topSignal);
+        await reviewSuggestion(false, 'below threshold');
+        currentState = {
+          ...currentState,
+          currentPhase: 'idle',
+          lastRunAt: nowIso(),
+          lastResult: 'skipped',
+          phaseStartedAt: nowIso(),
+          runId: undefined,
+          runStartedAt: undefined
+        };
         await saveState(baseDir, currentState);
         return;
       }
     }
+
+    setSelectedSuggestion(topSignal);
 
     const fallbackDecision = effectiveDecision ?? buildFallbackDecision(topSignal, evidenceMap[topSignal.id]);
     const decisions = await loadDecisions(baseDir);
@@ -442,8 +599,7 @@ export async function runDailyCycle(baseDir: string) {
     const rationale = fallbackDecision.rationale ?? 'SYNTH selected this drop based on the top scored signal.';
     await appendMarkdown(memoryPaths(baseDir).dropsMd, `- ${nowIso()} decision: ${dropType} for "${dropName}"${rationaleSnippet}`);
 
-    currentState = { ...currentState, currentPhase: 'development' };
-    await saveState(baseDir, currentState);
+    await setPhase('development');
 
     const requiresContract = contractType !== 'none';
     let mainnetAddress = '';
@@ -453,7 +609,16 @@ export async function runDailyCycle(baseDir: string) {
     if (requiresContract) {
       const testsPass = await runTests(baseDir);
       if (!testsPass) {
-        currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'failed' };
+        await reviewSuggestion(false, 'tests failed');
+        currentState = {
+          ...currentState,
+          currentPhase: 'idle',
+          lastRunAt: nowIso(),
+          lastResult: 'failed',
+          phaseStartedAt: nowIso(),
+          runId: undefined,
+          runStartedAt: undefined
+        };
         await saveState(baseDir, currentState);
         return;
       }
@@ -501,7 +666,17 @@ export async function runDailyCycle(baseDir: string) {
       const sepoliaAddress = parseDeployedAddress(sepoliaResult.output);
       if (!sepoliaResult.success || !sepoliaAddress) {
         await log(baseDir, 'error', `Sepolia deployment failed: ${sepoliaResult.output.slice(0, 4000)}`);
-        await saveState(baseDir, { ...state, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'failed' });
+        await reviewSuggestion(false, 'sepolia deploy failed');
+        currentState = {
+          ...currentState,
+          currentPhase: 'idle',
+          lastRunAt: nowIso(),
+          lastResult: 'failed',
+          phaseStartedAt: nowIso(),
+          runId: undefined,
+          runStartedAt: undefined
+        };
+        await saveState(baseDir, currentState);
         return;
       }
 
@@ -588,7 +763,7 @@ export async function runDailyCycle(baseDir: string) {
       repoUrl: repo.htmlUrl,
       webappUrl: '',
       skills: contentSkills,
-      context: agentContext
+      context: llmContext
     });
 
     const fallbackContent = {
@@ -645,7 +820,7 @@ export async function runDailyCycle(baseDir: string) {
       webappUrl: vercelProjectUrl,
       rpcUrl,
       skills: contentSkills,
-      context: agentContext
+      context: llmContext
     });
 
     if (codegenMode !== 'off' && (!generatedFiles || generatedFiles.length === 0)) {
@@ -697,6 +872,20 @@ export async function runDailyCycle(baseDir: string) {
       });
     }
 
+    let builderInfo: DropRecord['builder'] | undefined;
+    if (selectedSuggestionMeta?.submitter) {
+      builderInfo = {
+        address: selectedSuggestionMeta.submitter,
+        stakeEth: selectedSuggestionMeta.stakeEth,
+        suggestionId: selectedSuggestionId ? selectedSuggestionId.toString() : undefined,
+        stakeReturned: false
+      };
+      await reviewSuggestion(true, 'built');
+      if (suggestionReviewed && builderInfo) {
+        builderInfo.stakeReturned = true;
+      }
+    }
+
     const dropRecord: DropRecord = {
       id: `${Date.now()}`,
       name: dropName,
@@ -705,6 +894,7 @@ export async function runDailyCycle(baseDir: string) {
       contractAddress: requiresContract ? mainnetAddress : '',
       contractType,
       appMode,
+      builder: builderInfo,
       githubUrl: repo.htmlUrl,
       webappUrl: vercelProjectUrl,
       explorerUrl: explorerUrl || undefined,
@@ -713,6 +903,7 @@ export async function runDailyCycle(baseDir: string) {
       trend: topSignal.summary,
       trendSource: topSignal.source,
       trendScore: topSignal.score,
+      trendEngagement: typeof topSignal.engagement === 'number' ? topSignal.engagement : undefined,
       txHash: gasInfo.txHash || undefined,
       gasUsed: gasInfo.gasUsed || undefined,
       gasPrice: gasInfo.gasPrice || undefined,
@@ -724,25 +915,65 @@ export async function runDailyCycle(baseDir: string) {
     drops.unshift(dropRecord);
     await saveDrops(baseDir, drops);
 
-    await broadcastDrop({
-      baseDir,
-      drop: dropRecord,
-      trend: topSignal,
-      skills: socialSkills,
-      context: agentContext
-    });
+    let social: { thread: string[]; farcaster: string } | null = null;
+    try {
+      social = await broadcastDrop({
+        baseDir,
+        drop: dropRecord,
+        trend: topSignal,
+        skills: socialSkills,
+      context: llmContext
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await log(baseDir, 'warn', `Broadcast failed: ${message}`);
+    }
+
+    try {
+      await saveArtifacts(baseDir, {
+        runId: options?.runId,
+        drop: dropRecord,
+        decision: fallbackDecision,
+        trend: topSignal,
+        evidence: evidenceMap[topSignal.id],
+        generatedFiles: generatedFiles ?? null,
+        content,
+        social
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await log(baseDir, 'warn', `Artifact capture failed: ${message}`);
+    }
 
     const deployedLine = dropRecord.contractAddress
       ? `${dropRecord.type} ${dropRecord.contractAddress}`
       : `${dropRecord.type} (offchain)`;
     await appendMarkdown(memoryPaths(baseDir).dropsMd, `- ${nowIso()} deployed ${deployedLine}`);
 
-    currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'success' };
+    currentState = {
+      ...currentState,
+      currentPhase: 'idle',
+      lastRunAt: nowIso(),
+      lastResult: 'success',
+      phaseStartedAt: nowIso(),
+      runId: undefined,
+      runStartedAt: undefined
+    };
     await saveState(baseDir, currentState);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await log(baseDir, 'error', message);
-    currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'failed', lastError: message };
+    await reviewSuggestion(false, 'run failed');
+    currentState = {
+      ...currentState,
+      currentPhase: 'idle',
+      lastRunAt: nowIso(),
+      lastResult: 'failed',
+      lastError: message,
+      phaseStartedAt: nowIso(),
+      runId: undefined,
+      runStartedAt: undefined
+    };
     await saveState(baseDir, currentState);
   }
 }

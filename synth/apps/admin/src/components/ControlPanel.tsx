@@ -48,7 +48,7 @@ export function ControlPanel() {
     const res = await fetch('/api/control', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'run' }),
+      body: JSON.stringify({ action: 'run', force: true }),
     });
     if (!res.ok) {
       setError('Failed to start run');
@@ -101,6 +101,22 @@ export function ControlPanel() {
     }
   };
 
+  const handleClearQueue = async () => {
+    if (!confirm('Clear all queued runs?')) {
+      return;
+    }
+    setError(null);
+    const res = await fetch('/api/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'clear-queue' }),
+    });
+    if (!res.ok) {
+      setError('Failed to clear queue');
+      return;
+    }
+  };
+
   const handleOverride = async () => {
     if (!overrideId.trim()) {
       setError('Enter a signal id to override');
@@ -142,6 +158,9 @@ export function ControlPanel() {
         </button>
         <button onClick={handleUnlock} className="btn btn-secondary">
           Unlock Run
+        </button>
+        <button onClick={handleClearQueue} className="btn btn-secondary">
+          Clear Queue
         </button>
         <button onClick={handleClearDrops} className="btn btn-secondary">
           Clear Drops

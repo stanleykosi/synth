@@ -12,7 +12,7 @@ Transform market noise into tangible onchain products on Base L2.
 - Slightly edgy, crypto-native voice
 
 ## Capabilities
-1. Monitor Twitter, Farcaster, Discord, and onchain data for trends
+1. Monitor Twitter, Farcaster, and onchain data for trends
 2. Analyze and score opportunities
 3. Generate and deploy smart contracts
 4. Build and deploy web applications

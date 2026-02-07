@@ -7,6 +7,7 @@ import { DecisionPanel } from '@/components/DecisionPanel';
 import { MemoryPanel } from '@/components/MemoryPanel';
 import { RateLimitPanel } from '@/components/RateLimitPanel';
 import { DeploymentHistory } from '@/components/DeploymentHistory';
+import { QueuePanel } from '@/components/QueuePanel';
 import styles from './page.module.css';
 
 export default function AdminDashboard() {
@@ -34,6 +35,11 @@ export default function AdminDashboard() {
       <section className={styles.section}>
         <h2>Metrics</h2>
         <MetricsPanel />
+      </section>
+
+      <section className={styles.section}>
+        <h2>Queue</h2>
+        <QueuePanel />
       </section>
 
       <section className={styles.section}>

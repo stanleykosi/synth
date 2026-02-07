@@ -397,10 +397,6 @@ openclaw gateway start
 2. Sign up for Neynar API
 3. Get API key and signer
 
-**Discord**
-1. Create SYNTH server
-2. Create channels: #announcements, #suggestions, #synth-drops
-3. Create bot and add to server
 
 ### J. Final Go-Live Checklist
 

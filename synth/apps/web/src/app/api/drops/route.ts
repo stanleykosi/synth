@@ -12,10 +12,19 @@ interface DropPayload {
   contractAddress?: string;
   contractType?: 'erc20' | 'erc721' | 'erc1155' | 'none';
   appMode?: 'onchain' | 'offchain';
+  builder?: {
+    address: string;
+    stakeEth?: number;
+    suggestionId?: string;
+    stakeReturned?: boolean;
+  };
   githubUrl: string;
   webappUrl?: string;
   deployedAt: string;
   trend: string;
+  trendSource?: string;
+  trendScore?: number;
+  trendEngagement?: number;
 }
 
 function isValidDrop(payload: unknown): payload is DropPayload {
@@ -33,7 +42,11 @@ function isValidDrop(payload: unknown): payload is DropPayload {
     (drop.contractAddress === undefined || typeof drop.contractAddress === 'string') &&
     (drop.contractType === undefined || typeof drop.contractType === 'string') &&
     (drop.appMode === undefined || typeof drop.appMode === 'string') &&
-    (drop.webappUrl === undefined || typeof drop.webappUrl === 'string')
+    (drop.webappUrl === undefined || typeof drop.webappUrl === 'string') &&
+    (drop.trendSource === undefined || typeof drop.trendSource === 'string') &&
+    (drop.trendScore === undefined || typeof drop.trendScore === 'number') &&
+    (drop.trendEngagement === undefined || typeof drop.trendEngagement === 'number') &&
+    (drop.builder === undefined || (typeof drop.builder === 'object' && typeof drop.builder.address === 'string'))
   );
 }
 

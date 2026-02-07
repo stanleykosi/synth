@@ -9,6 +9,11 @@ interface DropItem {
   type: string;
   contractAddress: string;
   appMode?: 'onchain' | 'offchain';
+  builder?: {
+    address: string;
+    stakeEth?: number;
+    stakeReturned?: boolean;
+  };
   deployedAt: string;
   explorerUrl?: string;
   txHash?: string;
@@ -42,6 +47,15 @@ export function DeploymentHistory() {
                 <span>{new Date(drop.deployedAt).toLocaleString()}</span>
                 <span>{drop.gasCostEth ? `${drop.gasCostEth} ETH` : 'Gas N/A'}</span>
               </div>
+              {drop.builder?.address && (
+                <div className={styles.metaRow}>
+                  <span>Builder: {drop.builder.address.slice(0, 6)}…{drop.builder.address.slice(-4)}</span>
+                  <span>
+                    {typeof drop.builder.stakeEth === 'number' ? `${drop.builder.stakeEth.toFixed(4)} ETH` : 'Stake N/A'}
+                    {drop.builder.stakeReturned ? ' • Returned' : ''}
+                  </span>
+                </div>
+              )}
               <div className={styles.links}>
                 {drop.explorerUrl && (
                   <a href={drop.explorerUrl} target="_blank" rel="noreferrer">Explorer</a>

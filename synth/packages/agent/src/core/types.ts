@@ -23,6 +23,12 @@ export interface DropRecord {
   contractAddress: string;
   contractType?: ContractType;
   appMode?: AppMode;
+  builder?: {
+    address: string;
+    stakeEth?: number;
+    suggestionId?: string;
+    stakeReturned?: boolean;
+  };
   githubUrl: string;
   webappUrl?: string;
   explorerUrl?: string;
@@ -31,6 +37,7 @@ export interface DropRecord {
   trend: string;
   trendSource?: TrendSource;
   trendScore?: number;
+  trendEngagement?: number;
   txHash?: string;
   gasUsed?: string;
   gasPrice?: string;
@@ -41,6 +48,9 @@ export interface DropRecord {
 export interface AgentState {
   paused: boolean;
   currentPhase: 'idle' | 'signal-detection' | 'decision' | 'development' | 'broadcast';
+  runId?: string;
+  runStartedAt?: string;
+  phaseStartedAt?: string;
   lastRunAt?: string;
   lastResult?: 'success' | 'failed' | 'skipped';
   lastError?: string;

@@ -20,12 +20,13 @@ export interface DropItem {
   trend: string;
   trendSource?: string;
   trendScore?: number;
+  trendEngagement?: number;
   txHash?: string;
   gasCostEth?: string;
 }
 
 type FilterType = 'all' | DropItem['type'];
-type SortType = 'date' | 'score';
+type SortType = 'date' | 'score' | 'engagement';
 
 export function DropsView({ drops }: { drops: DropItem[] }) {
   const [filter, setFilter] = useState<FilterType>('all');
@@ -36,6 +37,9 @@ export function DropsView({ drops }: { drops: DropItem[] }) {
     return [...base].sort((a, b) => {
       if (sort === 'score') {
         return (b.trendScore ?? 0) - (a.trendScore ?? 0);
+      }
+      if (sort === 'engagement') {
+        return (b.trendEngagement ?? 0) - (a.trendEngagement ?? 0);
       }
       return new Date(b.deployedAt).getTime() - new Date(a.deployedAt).getTime();
     });
@@ -68,6 +72,12 @@ export function DropsView({ drops }: { drops: DropItem[] }) {
             onClick={() => setSort('score')}
           >
             Score
+          </button>
+          <button
+            className={sort === 'engagement' ? styles.filterActive : styles.filter}
+            onClick={() => setSort('engagement')}
+          >
+            Engagement
           </button>
         </div>
       </div>

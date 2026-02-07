@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import type { AgentConfig } from '../core/config.js';
 import { log } from '../core/logger.js';
-import { runDailyCycle } from '../core/pipeline.js';
+import { enqueueRun } from '../core/queue.js';
 
 export function startScheduler(baseDir: string, config: AgentConfig) {
   const hour = config.pipeline.dailyRunHourUTC;
@@ -9,7 +9,12 @@ export function startScheduler(baseDir: string, config: AgentConfig) {
 
   cron.schedule(schedule, async () => {
     await log(baseDir, 'info', 'Starting scheduled SYNTH cycle.');
-    await runDailyCycle(baseDir);
+    await enqueueRun(baseDir, {
+      requestedBy: 'scheduler',
+      reason: 'Scheduled daily run',
+      force: false,
+      source: 'cron'
+    });
   }, { timezone: 'UTC' });
 
   log(baseDir, 'info', `Scheduler enabled at ${hour}:00 UTC.`).catch(() => null);
