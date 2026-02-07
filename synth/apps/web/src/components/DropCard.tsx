@@ -26,6 +26,10 @@ export function DropCard({ drop }: { drop: Drop }) {
     contract: '#ffaa00'
   } as const;
 
+  const description = drop.description.length > 180
+    ? `${drop.description.slice(0, 177)}...`
+    : drop.description;
+
   return (
     <article className={styles.card}>
       <div className={styles.header}>
@@ -41,7 +45,7 @@ export function DropCard({ drop }: { drop: Drop }) {
       </div>
 
       <h3 className={styles.name}>{drop.name}</h3>
-      <p className={styles.description}>{drop.description}</p>
+      <p className={styles.description}>{description}</p>
 
       <div className={styles.meta}>
         {drop.trendSource && <span className={styles.metaItem}>Source: {drop.trendSource}</span>}

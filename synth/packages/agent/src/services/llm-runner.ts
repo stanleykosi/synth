@@ -61,9 +61,13 @@ async function runOpenClawAgent<T>(payload: LlmTaskPayload): Promise<T> {
   const cli = process.env.OPENCLAW_CLI_PATH ?? 'openclaw';
   const agentId = process.env.OPENCLAW_AGENT_ID ?? 'main';
   const timeoutSec = Number(process.env.OPENCLAW_AGENT_TIMEOUT ?? '180');
+  const sessionMode = (process.env.OPENCLAW_SESSION_MODE ?? 'sticky').toLowerCase();
+  const sessionId = sessionMode === 'stateless'
+    ? `synth-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    : process.env.OPENCLAW_SESSION_ID;
   const message = buildAgentMessage(payload);
 
-  const { stdout } = await execFileAsync(cli, [
+  const args = [
     'agent',
     '--agent',
     agentId,
@@ -72,7 +76,13 @@ async function runOpenClawAgent<T>(payload: LlmTaskPayload): Promise<T> {
     '--json',
     '--timeout',
     String(timeoutSec)
-  ], {
+  ];
+
+  if (sessionId) {
+    args.push('--session-id', sessionId);
+  }
+
+  const { stdout } = await execFileAsync(cli, args, {
     env: process.env,
     maxBuffer: 5 * 1024 * 1024
   });

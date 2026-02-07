@@ -220,7 +220,12 @@ pnpm add -g openclaw
 openclaw setup
 ```
 
-### Step 2: Copy SYNTH agent workspace
+### Step 2: Point OpenClaw to the SYNTH workspace
+
+We now run OpenClaw directly from the repo workspace so skills and memory stay in sync.
+No copy is required if you set the workspace path to `/home/ubuntu/synth/synth/packages/agent` (see JSON below).
+
+If you prefer the default OpenClaw workspace, you can still copy:
 
 ```
 cd ~/synth/synth
@@ -245,12 +250,15 @@ GRAPH_ENDPOINT=
 GRAPH_QUERY=
 OPENCLAW_GATEWAY_URL=http://127.0.0.1:18789
 OPENCLAW_GATEWAY_TOKEN=
-OPENCLAW_WORKSPACE_DIR=/home/ubuntu/.openclaw/workspace
+OPENCLAW_WORKSPACE_DIR=/home/ubuntu/synth/synth/packages/agent
 OPENCLAW_CLI_PATH=openclaw
 OPENCLAW_AGENT_ID=synth
 OPENCLAW_AGENT_TIMEOUT=180
+OPENCLAW_SESSION_MODE=stateless
 SYNTH_LLM_MODEL=openrouter/moonshotai/kimi-k2.5
 SYNTH_LLM_MAX_TOKENS=200000
+SYNTH_CODEGEN_MODE=llm
+SYNTH_CODEGEN_MAX_TOKENS=3500
 DISCORD_BOT_TOKEN=
 DISCORD_LAUNCH_CHANNEL_ID=
 BASESCAN_API_KEY=
@@ -302,17 +310,15 @@ Edit `~/.openclaw/openclaw.json` and add:
   },
   "skills": {
     "load": {
-      "extraDirs": ["/home/ubuntu/synth/synth/packages/agent/skills"]
+      "extraDirs": ["/home/ubuntu/synth/synth/packages/agent/skills"],
+      "watch": true,
+      "watchDebounceMs": 250
     }
   },
   "tools": {
     "web": {
       "search": {
-        "enabled": true,
-        "provider": "perplexity",
-        "perplexity": {
-          "model": "perplexity/sonar-pro"
-        }
+        "enabled": false
       },
       "fetch": { "enabled": true }
     }
@@ -483,7 +489,8 @@ Ensure these env vars exist:
 
 ```
 ADMIN_SECRET=...
-OPENCLAW_WORKSPACE_DIR=/home/ubuntu/.openclaw/workspace
+OPENCLAW_WORKSPACE_DIR=/home/ubuntu/synth/synth/packages/agent
+OPENCLAW_SESSION_MODE=stateless
 ```
 
 Then in the Admin UI:
@@ -625,30 +632,31 @@ pnpm install
 
 ## Step 2: Refresh the OpenClaw Workspace
 
+If your OpenClaw workspace is set to the repo path (`/home/ubuntu/synth/synth/packages/agent`), no copy is needed.
+If you kept the default `~/.openclaw/workspace`, copy the files:
+
 ```
 cp -r ~/synth/synth/packages/agent/* ~/.openclaw/workspace/
 ```
 
 This ensures `SOUL.md`, `USER.md`, `TOOLS.md`, and new skills are in the workspace.
 
-## Step 3: Turn On Perplexity Search (OpenRouter Key Only)
+## Step 3: Web Search Tools (Optional)
 
-Edit `~/.openclaw/openclaw.json` and ensure:
+OpenClaw `web_search` requires a provider key. If you **do not** have Perplexity or Brave keys, keep search disabled:
 
 ```json
 {
   "tools": {
     "web": {
-      "search": {
-        "enabled": true,
-        "provider": "perplexity",
-        "perplexity": { "model": "perplexity/sonar-pro" }
-      },
+      "search": { "enabled": false },
       "fetch": { "enabled": true }
     }
   }
 }
 ```
+
+If you later add a key, set `enabled: true` and configure your provider.
 
 Restart the gateway:
 

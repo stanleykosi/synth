@@ -27,6 +27,11 @@ export interface RepoTemplateInput {
   webappUrl?: string;
 }
 
+export interface GeneratedFile {
+  path: string;
+  content: string;
+}
+
 const tokenMap: Record<string, (input: RepoTemplateInput) => string> = {
   '__REPO_NAME__': (input) => input.repoName,
   '__DROP_NAME__': (input) => input.dropName,
@@ -79,13 +84,41 @@ async function replaceTokensRecursively(dir: string, input: RepoTemplateInput) {
   }
 }
 
-export async function prepareRepoTemplate(input: RepoTemplateInput): Promise<string> {
+function isAllowedGeneratedPath(filePath: string): boolean {
+  if (filePath.includes('..') || filePath.startsWith('/')) return false;
+  const allowedPrefixes = [
+    'src/',
+    'public/',
+    'contracts/src/',
+    'contracts/script/',
+    'contracts/README.md'
+  ];
+  return allowedPrefixes.some((prefix) => filePath.startsWith(prefix));
+}
+
+function containsPlaceholders(content: string): boolean {
+  return content.includes('__DROP_') || content.includes('__CONTRACT_') || content.includes('__REPO_');
+}
+
+async function applyGeneratedFiles(tempDir: string, files?: GeneratedFile[]) {
+  if (!files || files.length === 0) return;
+  for (const file of files) {
+    if (!isAllowedGeneratedPath(file.path)) continue;
+    if (containsPlaceholders(file.content)) continue;
+    const targetPath = path.join(tempDir, file.path);
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.writeFile(targetPath, file.content);
+  }
+}
+
+export async function prepareRepoTemplate(input: RepoTemplateInput, files?: GeneratedFile[]): Promise<string> {
   const templatesDir = resolveTemplatesDir(input.baseDir);
   const templateDir = path.join(templatesDir, 'drop-repo');
 
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'synth-drop-'));
   await fs.cp(templateDir, tempDir, { recursive: true });
   await replaceTokensRecursively(tempDir, input);
+  await applyGeneratedFiles(tempDir, files);
 
   return tempDir;
 }

@@ -52,10 +52,13 @@ export async function generateDropContent(input: DropContentInput): Promise<Drop
     'Return JSON only and follow the schema.',
     'README must be clear, concise, and ready for public release.',
     'Include sections: Overview, Why it exists, What shipped, Contract, Local development, Deploy, Links, License.',
-    'Use the provided drop details and links. Do not invent addresses.',
+    'If dropType is dapp, include a short "How it works" section describing the UI and onchain read/mint controls.',
+    'If dropType is token, include Token summary + how to verify supply.',
+    'If dropType is nft/contract, include Mint mechanics and metadata guidance.',
+    'Use the provided drop details and links. Do not invent addresses or metrics.',
     'About should be a short GitHub repo summary (<= 200 chars).',
     'Commit message should be <= 72 chars and professional.',
-    'App name should be a short, memorable slug (no spaces), suitable for Vercel.',
+    'App name should be a short, memorable slug (no spaces), suitable for Vercel. Avoid generic names and avoid the prefix "synth".',
     input.skills ? 'Use the skills guidance provided when relevant.' : '',
     input.context ? 'Follow the persona and operator preferences provided.' : ''
   ].join('\n');

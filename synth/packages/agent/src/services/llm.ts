@@ -10,10 +10,10 @@ const decisionSchema = {
     dropType: { type: 'string', enum: ['token', 'nft', 'dapp', 'contract'] },
     name: { type: 'string', minLength: 3 },
     symbol: { type: 'string', minLength: 2 },
-    description: { type: 'string', minLength: 10 },
-    tagline: { type: 'string', minLength: 5 },
-    hero: { type: 'string', minLength: 5 },
-    cta: { type: 'string', minLength: 3 },
+    description: { type: 'string', minLength: 10, maxLength: 180 },
+    tagline: { type: 'string', minLength: 5, maxLength: 80 },
+    hero: { type: 'string', minLength: 5, maxLength: 200 },
+    cta: { type: 'string', minLength: 3, maxLength: 40 },
     features: { type: 'array', items: { type: 'string' }, minItems: 3, maxItems: 6 },
     rationale: { type: 'string', minLength: 10 },
     confidence: { type: 'number', minimum: 0, maximum: 1 },
@@ -73,6 +73,7 @@ export async function generateDecision(input: {
   skills?: string;
   context?: string;
   prioritySignalId?: string;
+  prioritySignal?: { id: string; summary: string; stakeEth?: number };
 }): Promise<DecisionRecord | null> {
   if (!input.config.decision.enabled) return null;
 
@@ -84,12 +85,15 @@ export async function generateDecision(input: {
     'Given trend signals and evidence, decide whether to build today.',
     'Return JSON only that follows the schema.',
     'If a trend is weak or redundant, set go=false with a rationale.',
-    'Ensure name and symbol are unique and memorable.',
-    'Only choose a token drop when the signal is a strong newsworthy market event.',
+    'Ensure name and symbol are unique, memorable, and human-readable (no raw metrics or underscores).',
+    'Description must be a concise product summary, not a raw signal dump.',
+    'Default to dapp when unsure. Only choose token for a strong, newsworthy market event corroborated by multiple sources.',
+    'Only choose NFT when the signal is clearly about minting or a collection launch.',
     'If the signal is a user suggestion requesting a webapp/dashboard, choose dapp.',
     'Prioritize the most recent signals when all else is equal.',
-    'Synthesize across multiple signals; if several sources point to the same pattern, prefer that thesis.',
-    input.prioritySignalId ? `Priority signal: if ${input.prioritySignalId} is provided, you should strongly prefer it unless it is unsafe or incoherent.` : '',
+    'Synthesize across multiple signals; if several sources point to the same pattern, select that thesis and cite the strongest representative trendId.',
+    input.prioritySignalId ? `Priority signal: ${input.prioritySignalId} should be preferred unless unsafe, spam, or incoherent.` : '',
+    input.prioritySignal ? `Priority stake: ${input.prioritySignal.stakeEth ?? 0} ETH. Treat high-stake suggestions as must-build unless unsafe.` : '',
     input.skills ? 'Use the skills guidance provided when relevant.' : '',
     input.context ? 'Follow the persona and operator preferences provided.' : ''
   ].join('\n');
@@ -112,7 +116,14 @@ export async function generateDecision(input: {
       })),
       skills: input.skills ?? '',
       context: input.context ?? '',
-      prioritySignalId: input.prioritySignalId ?? ''
+      prioritySignalId: input.prioritySignalId ?? '',
+      prioritySignal: input.prioritySignal ?? null,
+      policy: {
+        minScore: input.config.decision.minScore,
+        minConfidence: input.config.decision.minConfidence,
+        stakePriorityEth: input.config.scoring.stakePriorityEth,
+        recencyWindowHours: input.config.scoring.recencyWindowHours
+      }
     },
     schema: decisionSchema,
     model,

@@ -36,11 +36,11 @@ export async function generateSocialCopy(input: {
     'Template for thread:',
     '1) SYNTH drop: <name> — <tagline> | Signal: <summary>',
     '2) What shipped: <description>',
-    '3) Contract + explorer link',
-    '4) Repo link + web app link (or "Web: N/A")',
+    '3) Contract: <address> | Explorer: <link>',
+    '4) Repo: <link> | Web: <link or "N/A">',
     '5) CTA: submit suggestions or feedback',
     'Keep each tweet <= 280 characters.',
-    'Farcaster should be a single post summarizing the drop with links.',
+    'Farcaster should be a single post summarizing the drop with repo + web + explorer links.',
     input.skills ? 'Use the skills guidance provided when relevant.' : '',
     input.context ? 'Follow the persona and operator preferences provided.' : ''
   ].join('\n');

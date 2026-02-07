@@ -6,17 +6,26 @@ description: Generate and deploy Next.js webapps for SYNTH drops.
 # Skill: Web Builder
 
 ## Purpose
-Produce and deploy frontends for SYNTH drops when required.
+Generate a **production-ready Next.js 16 dapp** for each drop.
 
-## Procedure
-1. Scaffold a Next.js App Router application.
-2. Use the SYNTH design system (dark mode, mint accents, glassmorphism).
-3. Integrate Viem + Wagmi v2 for wallet connections.
-4. Deploy to Vercel and record URLs in `memory/drops.md`.
+## Required Files
+- `src/app/layout.tsx`
+- `src/app/page.tsx`
+- `src/app/globals.css`
+- (optional) `src/components/*` for layout reuse
 
-## Quality
+## Requirements
+- Next.js 16 App Router, TypeScript, vanilla CSS (no Tailwind).
+- Dark mode, mint accents, glassmorphism, bold typography.
+- Onchain read panel using viem (owner, symbol, supply, URI, etc).
+- If dropType is `nft` or `contract`, include an **owner mint UI** with wallet connect.
+- No placeholders or `__TOKEN__` style tags.
 - Mobile responsive.
-- No Tailwind or placeholder UI.
+
+## Output Expectations
+- A novel, visually strong UI per drop.
+- Uses real data from the chain (RPC + contract address).
+- If a wallet is connected, show the account and allow mint for owner.
 
 ## Execution
-The agent generates a drop repo from the built-in template and links it to Vercel.
+The agent writes code files directly into the drop repo. Vercel deploy is automatic.

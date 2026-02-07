@@ -6,15 +6,14 @@ description: Generate secure contracts, tests, and deployment scripts.
 # Skill: Contract Synth
 
 ## Purpose
-Design and deploy smart contracts based on selected trends.
+Design **secure smart contracts** and deployment scripts for each drop.
 
 ## Procedure
-1. Select the appropriate template (ERC20, ERC721, ERC1155, or custom).
+1. Select the appropriate contract type (ERC20, ERC721, ERC1155, or custom).
 2. Write minimal, secure contracts with NatSpec for public functions.
-3. Write Foundry tests to cover critical paths.
-4. Deploy to Base Sepolia and verify.
-5. If tests pass, deploy to Base mainnet and verify.
-6. Record addresses and tx hashes in `memory/drops.md`.
+3. Provide Foundry deploy scripts in `contracts/script/`.
+4. Keep contracts compatible with OpenZeppelin v5 and Solidity ^0.8.24.
+5. Record addresses and tx hashes in `memory/drops.md`.
 
 ## Safety
 - Use ReentrancyGuard on payable functions.
@@ -22,4 +21,4 @@ Design and deploy smart contracts based on selected trends.
 - Never expose private keys or secrets.
 
 ## Execution
-Use the agent cycle to run Foundry tests, deploy to Base Sepolia, and optionally mainnet when enabled.
+The pipeline deploys from `packages/contracts`. The drop repo must still include clean, compilable contract code for transparency.

@@ -15,6 +15,7 @@ import { fetchGraphSignals } from '../sources/graph.js';
 import { runForge, parseDeployedAddress, readBroadcastGasInfo } from '../services/foundry.js';
 import { ensureRepo, updateRepoDescription } from '../services/github.js';
 import { prepareRepoTemplate, initAndPushRepo } from '../services/repo.js';
+import { generateRepoFiles } from '../services/codegen.js';
 import { createVercelProject } from '../services/vercel.js';
 import { broadcastDrop } from '../services/broadcast.js';
 import { buildEvidence } from '../services/research.js';
@@ -26,6 +27,16 @@ import { generateDropContent } from '../services/content.js';
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function cleanSignalSummary(text: string): string {
+  return text
+    .replace(/_/g, ' ')
+    .replace(/\b0x[a-fA-F0-9]{6,}\b/g, '0x…')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*UTC\b/gi, '')
+    .trim()
+    .slice(0, 180);
 }
 
 function pickDropType(signal: TrendSignal): DropType {
@@ -52,7 +63,7 @@ function pickDropType(signal: TrendSignal): DropType {
 }
 
 function generateDropName(signal: TrendSignal): string {
-  const words = signal.summary.replace(/[^a-zA-Z0-9 ]/g, '').split(' ').filter(Boolean);
+  const words = cleanSignalSummary(signal.summary).replace(/[^a-zA-Z0-9 ]/g, '').split(' ').filter(Boolean);
   const core = words.slice(0, 3).join(' ');
   return core.length > 0 ? `SYNTH ${core}` : `SYNTH Drop ${new Date().toISOString().slice(0, 10)}`;
 }
@@ -112,7 +123,15 @@ function selectPrioritySuggestion(signals: TrendSignal[], stakeThreshold: number
   return eligible[0] ?? null;
 }
 
-function buildFallbackDecision(signal: TrendSignal, evidence: Record<string, unknown> | undefined) {
+function selectHighestStakeSuggestion(signals: TrendSignal[]): TrendSignal | null {
+  const suggestions = signals
+    .filter((signal) => signal.source === 'suggestion' && typeof signal.meta?.stakeEth === 'number')
+    .sort((a, b) => (b.meta?.stakeEth as number) - (a.meta?.stakeEth as number));
+  return suggestions[0] ?? null;
+}
+
+function buildStakeOverrideDecision(signal: TrendSignal, reason: string) {
+  const summary = cleanSignalSummary(signal.summary);
   const name = generateDropName(signal);
   return {
     id: `decision-${Date.now()}`,
@@ -122,9 +141,31 @@ function buildFallbackDecision(signal: TrendSignal, evidence: Record<string, unk
     dropType: pickDropType(signal),
     name,
     symbol: generateSymbol(name),
-    description: `Built from signal: ${signal.summary}`,
+    description: summary.length > 0 ? summary : `Built from signal: ${signal.summary}`,
     tagline: 'From noise to signal.',
-    hero: `Built from signal: ${signal.summary}`,
+    hero: summary.length > 0 ? summary : `Built from signal: ${signal.summary}`,
+    cta: 'Explore the drop',
+    features: ['Onchain-native', 'Open source', 'Shipped by SYNTH'],
+    rationale: reason,
+    confidence: 0.75,
+    evidence: Array.isArray(signal.meta?.evidence) ? signal.meta?.evidence : []
+  };
+}
+
+function buildFallbackDecision(signal: TrendSignal, evidence: Record<string, unknown> | undefined) {
+  const summary = cleanSignalSummary(signal.summary);
+  const name = generateDropName(signal);
+  return {
+    id: `decision-${Date.now()}`,
+    createdAt: nowIso(),
+    trendId: signal.id,
+    go: true,
+    dropType: pickDropType(signal),
+    name,
+    symbol: generateSymbol(name),
+    description: summary.length > 0 ? summary : `Built from signal: ${signal.summary}`,
+    tagline: 'From noise to signal.',
+    hero: summary.length > 0 ? summary : `Built from signal: ${signal.summary}`,
     cta: 'Explore the drop',
     features: ['Onchain-native', 'Open source', 'Shipped by SYNTH'],
     rationale: 'Fallback decision generated because no LLM decision was available.',
@@ -272,29 +313,45 @@ export async function runDailyCycle(baseDir: string) {
     const agentContext = await buildAgentContext(baseDir);
     const skills = await buildSkillsContext(baseDir);
     const prioritySuggestion = selectPrioritySuggestion(ranked, config.scoring.stakePriorityEth || 0.1);
+    const highestStakeSuggestion = selectHighestStakeSuggestion(ranked);
     const decision = await generateDecision({
       signals: ranked,
       evidence: evidenceMap,
       config,
       skills,
       context: agentContext,
-      prioritySignalId: prioritySuggestion?.id
+      prioritySignalId: prioritySuggestion?.id,
+      prioritySignal: prioritySuggestion
+        ? {
+            id: prioritySuggestion.id,
+            summary: prioritySuggestion.summary,
+            stakeEth: typeof prioritySuggestion.meta?.stakeEth === 'number' ? prioritySuggestion.meta?.stakeEth : undefined
+          }
+        : undefined
     });
 
     if (decision) {
       await log(baseDir, 'info', `Decision: ${decision.name} (${decision.dropType}) confidence ${decision.confidence}`);
     }
 
+    let effectiveDecision = decision;
+    if (prioritySuggestion && (!decision || !decision.go || decision.confidence < config.decision.minConfidence)) {
+      const stake = prioritySuggestion.meta?.stakeEth ?? 0;
+      effectiveDecision = buildStakeOverrideDecision(
+        prioritySuggestion,
+        `High-stake suggestion override (${stake.toFixed(3)} ETH).`
+      );
+      await log(baseDir, 'info', `Priority suggestion override activated (${prioritySuggestion.id}).`);
+    }
+
     const overrideId = state.overrideSignalId;
-    const preferredId = decision?.trendId;
+    const preferredId = effectiveDecision?.trendId;
     const defaultSignal = ranked[0];
     let topSignal = overrideId
       ? ranked.find((signal) => signal.id === overrideId) ?? defaultSignal
       : preferredId
         ? ranked.find((signal) => signal.id === preferredId) ?? defaultSignal
         : defaultSignal;
-
-    const effectiveDecision = decision;
 
     if (effectiveDecision && (!effectiveDecision.go || effectiveDecision.confidence < config.decision.minConfidence)) {
       await log(baseDir, 'info', `Decision opted out (confidence ${effectiveDecision.confidence}).`);
@@ -313,10 +370,19 @@ export async function runDailyCycle(baseDir: string) {
     currentState = { ...currentState, currentPhase: 'decision' };
     await saveState(baseDir, currentState);
     if (!effectiveDecision && topSignal && topSignal.score < config.decision.minScore) {
-      await log(baseDir, 'info', `Top signal score ${topSignal.score} below threshold ${config.decision.minScore}.`);
-      currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'skipped' };
-      await saveState(baseDir, currentState);
-      return;
+      if (highestStakeSuggestion) {
+        effectiveDecision = buildStakeOverrideDecision(
+          highestStakeSuggestion,
+          'Highest stake suggestion fallback (no strong signals).'
+        );
+        topSignal = highestStakeSuggestion;
+        await log(baseDir, 'info', `Stake fallback selected (${highestStakeSuggestion.id}).`);
+      } else {
+        await log(baseDir, 'info', `Top signal score ${topSignal.score} below threshold ${config.decision.minScore}.`);
+        currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'skipped' };
+        await saveState(baseDir, currentState);
+        return;
+      }
     }
 
     const fallbackDecision = effectiveDecision ?? buildFallbackDecision(topSignal, evidenceMap[topSignal.id]);
@@ -474,8 +540,14 @@ export async function runDailyCycle(baseDir: string) {
       context: agentContext
     });
 
-    const repoAbout = content?.about ?? description;
-    const vercelAppName = sanitizeRepoName(content?.appName || baseName).slice(0, 36) || baseName;
+    const fallbackContent = {
+      about: description.slice(0, 180),
+      commitMessage: `Ship ${dropName}`,
+      appName: sanitizeRepoName(dropName)
+    };
+    const effectiveContent = content ?? fallbackContent;
+    const repoAbout = effectiveContent.about ?? description;
+    const vercelAppName = sanitizeRepoName(effectiveContent.appName || baseName).slice(0, 36) || baseName;
 
     if (repoOwner && process.env.VERCEL_TOKEN) {
       const repoSlug = `${repoOwner}/${repo.name}`;
@@ -499,6 +571,34 @@ export async function runDailyCycle(baseDir: string) {
       await log(baseDir, 'warn', 'Skipping Vercel project: missing VERCEL_TOKEN.');
     }
 
+    const codegenMode = (process.env.SYNTH_CODEGEN_MODE ?? 'llm').toLowerCase();
+    const generatedFiles = codegenMode === 'off' ? null : await generateRepoFiles({
+      dropType,
+      dropName,
+      symbol,
+      description,
+      tagline,
+      hero,
+      cta,
+      features,
+      rationale,
+      trend: topSignal,
+      network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
+      chain: 'Base',
+      chainId,
+      contractAddress: mainnetAddress,
+      explorerUrl,
+      repoUrl: repo.htmlUrl,
+      webappUrl: vercelProjectUrl,
+      rpcUrl,
+      skills: contentSkills,
+      context: agentContext
+    });
+
+    if (codegenMode !== 'off' && (!generatedFiles || generatedFiles.length === 0)) {
+      await log(baseDir, 'warn', 'LLM codegen failed or empty. Falling back to base template.');
+    }
+
     const tempDir = await prepareRepoTemplate({
       baseDir,
       repoName: repo.name,
@@ -520,7 +620,7 @@ export async function runDailyCycle(baseDir: string) {
       about: repoAbout,
       repoUrl: repo.htmlUrl,
       webappUrl: vercelProjectUrl
-    });
+    }, generatedFiles ?? undefined);
 
     if (content?.readme) {
       const patched = ensureReadmeLinks(content.readme, [
@@ -531,7 +631,7 @@ export async function runDailyCycle(baseDir: string) {
       await fs.writeFile(path.join(tempDir, 'README.md'), `${patched.trim()}\n`);
     }
 
-    await initAndPushRepo(tempDir, repo.cloneUrl, token, content?.commitMessage);
+    await initAndPushRepo(tempDir, repo.cloneUrl, token, effectiveContent.commitMessage);
 
     if (repoOwner && repoAbout) {
       await updateRepoDescription({

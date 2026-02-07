@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { createPublicClient, http, formatUnits } from 'viem';
+import { useEffect, useMemo, useState } from 'react';
+import { createPublicClient, http, formatUnits, createWalletClient, custom } from 'viem';
 import { base, baseSepolia } from 'viem/chains';
 
 const CONTRACT_ADDRESS = '__CONTRACT_ADDRESS__' as `0x${string}`;
@@ -38,6 +38,34 @@ const erc1155Abi = [
   { name: 'uri', type: 'function', stateMutability: 'view', inputs: [{ type: 'uint256' }], outputs: [{ type: 'string' }] }
 ] as const;
 
+const erc721MintAbi = [
+  {
+    name: 'mint',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'tokenUri', type: 'string' }
+    ],
+    outputs: [{ type: 'uint256' }]
+  }
+] as const;
+
+const erc1155MintAbi = [
+  {
+    name: 'mint',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'id', type: 'uint256' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'data', type: 'bytes' }
+    ],
+    outputs: []
+  }
+] as const;
+
 interface OnchainData {
   owner?: string;
   name?: string;
@@ -60,6 +88,29 @@ export default function Home() {
   const [onchain, setOnchain] = useState<OnchainData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [walletError, setWalletError] = useState('');
+  const [minting, setMinting] = useState(false);
+  const [mintStatus, setMintStatus] = useState('');
+  const [mintTo, setMintTo] = useState('');
+  const [tokenUri, setTokenUri] = useState('');
+  const [tokenId, setTokenId] = useState('0');
+  const [tokenAmount, setTokenAmount] = useState('1');
+
+  const isOwner = useMemo(() => {
+    if (!walletAddress || !onchain?.owner) return false;
+    return walletAddress.toLowerCase() === onchain.owner.toLowerCase();
+  }, [walletAddress, onchain?.owner]);
+
+  const getWalletClient = () => {
+    if (typeof window === 'undefined') return null;
+    const ethereum = (window as unknown as { ethereum?: unknown }).ethereum;
+    if (!ethereum) return null;
+    return createWalletClient({
+      chain,
+      transport: custom(ethereum)
+    });
+  };
 
   const handleCopy = async () => {
     try {
@@ -68,6 +119,74 @@ export default function Home() {
       setTimeout(() => setCopied(false), 1200);
     } catch {
       setCopied(false);
+    }
+  };
+
+  const connectWallet = async () => {
+    setWalletError('');
+    const walletClient = getWalletClient();
+    if (!walletClient) {
+      setWalletError('No injected wallet detected.');
+      return;
+    }
+    try {
+      const addresses = await walletClient.requestAddresses();
+      const address = addresses[0];
+      if (address) {
+        setWalletAddress(address);
+        setMintTo((prev) => prev || address);
+      }
+    } catch {
+      setWalletError('Wallet connection rejected.');
+    }
+  };
+
+  const handleMint = async () => {
+    setWalletError('');
+    setMintStatus('');
+    const walletClient = getWalletClient();
+    if (!walletClient || !walletAddress) {
+      setWalletError('Connect your wallet first.');
+      return;
+    }
+    if (!isOwner) {
+      setWalletError('Only the contract owner can mint.');
+      return;
+    }
+    const to = (mintTo || walletAddress) as `0x${string}`;
+    setMinting(true);
+    try {
+      if (DROP_TYPE === 'nft') {
+        if (!tokenUri.trim()) {
+          setWalletError('Token URI is required for minting.');
+          setMinting(false);
+          return;
+        }
+        await walletClient.writeContract({
+          address: CONTRACT_ADDRESS,
+          abi: erc721MintAbi,
+          functionName: 'mint',
+          args: [to, tokenUri.trim()],
+          account: walletAddress as `0x${string}`
+        });
+        setMintStatus('Mint submitted for ERC721.');
+      }
+      if (DROP_TYPE === 'contract') {
+        const id = BigInt(tokenId || '0');
+        const amount = BigInt(tokenAmount || '1');
+        await walletClient.writeContract({
+          address: CONTRACT_ADDRESS,
+          abi: erc1155MintAbi,
+          functionName: 'mint',
+          args: [to, id, amount, '0x'],
+          account: walletAddress as `0x${string}`
+        });
+        setMintStatus('Mint submitted for ERC1155.');
+      }
+    } catch {
+      setWalletError('Mint failed. Check wallet and network.');
+    } finally {
+      setMinting(false);
     }
   };
 
@@ -117,6 +236,12 @@ export default function Home() {
   useEffect(() => {
     loadOnchain().catch(() => null);
   }, []);
+
+  useEffect(() => {
+    if (walletAddress && !mintTo) {
+      setMintTo(walletAddress);
+    }
+  }, [walletAddress, mintTo]);
 
   return (
     <main className="page">
@@ -210,6 +335,75 @@ export default function Home() {
               </div>
             )}
           </div>
+        </div>
+        <div className="card">
+          <div className="card-row">
+            <h2>Wallet</h2>
+            <button className="btn ghost" onClick={connectWallet} type="button">
+              {walletAddress ? 'Connected' : 'Connect'}
+            </button>
+          </div>
+          {walletAddress ? (
+            <p className="mono">Connected: {walletAddress}</p>
+          ) : (
+            <p className="muted">Connect a wallet to unlock write actions.</p>
+          )}
+          {walletError && <p className="error">{walletError}</p>}
+          {(DROP_TYPE === 'nft' || DROP_TYPE === 'contract') && (
+            <div className="mint-panel">
+              <h3>Owner Mint</h3>
+              {!isOwner && <p className="muted">Only the contract owner can mint.</p>}
+              <label className="field">
+                <span>Recipient</span>
+                <input
+                  className="input"
+                  value={mintTo}
+                  onChange={(event) => setMintTo(event.target.value)}
+                  placeholder="0x..."
+                />
+              </label>
+              {DROP_TYPE === 'nft' && (
+                <label className="field">
+                  <span>Token URI</span>
+                  <input
+                    className="input"
+                    value={tokenUri}
+                    onChange={(event) => setTokenUri(event.target.value)}
+                    placeholder="ipfs://..."
+                  />
+                </label>
+              )}
+              {DROP_TYPE === 'contract' && (
+                <div className="mint-row">
+                  <label className="field">
+                    <span>Token ID</span>
+                    <input
+                      className="input"
+                      value={tokenId}
+                      onChange={(event) => setTokenId(event.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Amount</span>
+                    <input
+                      className="input"
+                      value={tokenAmount}
+                      onChange={(event) => setTokenAmount(event.target.value)}
+                    />
+                  </label>
+                </div>
+              )}
+              <button
+                className="btn primary"
+                onClick={handleMint}
+                disabled={!walletAddress || !isOwner || minting}
+                type="button"
+              >
+                {minting ? 'Minting...' : 'Mint'}
+              </button>
+              {mintStatus && <p className="muted">{mintStatus}</p>}
+            </div>
+          )}
         </div>
       </section>
 

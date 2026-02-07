@@ -6,24 +6,25 @@ description: Produce NFT launch content, mint details, and documentation.
 # NFT Builder Skill
 
 ## Goal
-Generate production-ready NFT drop content, docs, and messaging.
+Generate **NFT contract code + launch docs** for a SYNTH drop repo.
 
-## Required Output
-- NFT concept and collection narrative
-- Mint mechanics summary (supply, price if known, onchain details)
-- Contract address + explorer link
-- Metadata/URI guidance
-- Clear local dev + deploy steps
+## Required Files
+- `contracts/src/<CollectionName>.sol` (ERC721 or ERC1155)
+- `contracts/script/DeployERC721.s.sol` or `DeployERC1155.s.sol`
+- Optional: `contracts/README.md` with deploy + mint notes
+
+## Requirements
+- Solidity `^0.8.24`, OpenZeppelin v5 imports.
+- Owner-controlled minting.
+- Support token URI or base URI config.
+- NatSpec for public functions.
+- No placeholders or `__TOKEN__` tags.
+
+## Output Expectations
+- Collection narrative + mint mechanics summary.
+- Contract address + explorer link.
+- Metadata/URI guidance.
+- Clear local dev + deploy steps.
 
 ## Tone
 Concise, technical, and user-friendly.
-
-## Readme Structure
-1. Overview
-2. Collection narrative
-3. Contract details
-4. Mint mechanics
-5. Local development
-6. Deploy
-7. Links
-8. License
