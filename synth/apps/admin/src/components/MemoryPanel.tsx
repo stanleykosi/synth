@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './MemoryPanel.module.css';
 
 interface TrendItem {
@@ -23,18 +23,35 @@ interface DropItem {
 export function MemoryPanel() {
   const [trends, setTrends] = useState<TrendItem[]>([]);
   const [drops, setDrops] = useState<DropItem[]>([]);
+  const mountedRef = useRef(true);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetch('/api/trends')
       .then((res) => res.ok ? res.json() : Promise.reject())
-      .then((data: TrendItem[]) => setTrends(data.slice(0, 5)))
+      .then((data: TrendItem[]) => {
+        if (!mountedRef.current) return;
+        setTrends(data.slice(0, 5));
+      })
       .catch(() => null);
 
     fetch('/api/drops')
       .then((res) => res.ok ? res.json() : Promise.reject())
-      .then((data: DropItem[]) => setDrops(data.slice(0, 5)))
+      .then((data: DropItem[]) => {
+        if (!mountedRef.current) return;
+        setDrops(data.slice(0, 5));
+      })
       .catch(() => null);
   }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    load();
+    const timer = setInterval(load, 15000);
+    return () => {
+      mountedRef.current = false;
+      clearInterval(timer);
+    };
+  }, [load]);
 
   return (
     <div className={styles.panel}>

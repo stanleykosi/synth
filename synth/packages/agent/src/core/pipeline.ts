@@ -323,6 +323,7 @@ async function detectSignals(input: {
     const result = settled[i];
     if (result.status === 'fulfilled') {
       signalBuckets.push(result.value);
+      await log(baseDir, 'info', `Signal source ${sources[i].name} returned ${result.value.length} items.`);
     } else {
       const message = result.reason instanceof Error ? result.reason.message : String(result.reason);
       await log(baseDir, 'warn', `Signal source ${sources[i].name} failed: ${message}`);
@@ -395,6 +396,7 @@ async function detectSignals(input: {
 
   await saveTrends(baseDir, ranked);
   await appendMarkdown(memoryPaths(baseDir).trendsMd, `- ${nowIso()} captured ${ranked.length} signals`);
+  await log(baseDir, 'info', `Signal detection ranked ${ranked.length} signals.`);
 
   return { ranked, evidenceMap };
 }

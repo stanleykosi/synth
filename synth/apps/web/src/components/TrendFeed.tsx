@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './TrendFeed.module.css';
 
 interface TrendItem {
@@ -14,20 +14,39 @@ interface TrendItem {
 export function TrendFeed() {
   const [trends, setTrends] = useState<TrendItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
-  useEffect(() => {
-    let mounted = true;
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
     fetch('/api/trends')
       .then((res) => res.ok ? res.json() : Promise.reject(new Error('Failed to load trends')))
       .then((data: TrendItem[]) => {
-        if (mounted) setTrends(data);
+        if (!mountedRef.current) return;
+        setTrends(data);
+        setLastUpdated(new Date().toISOString());
       })
       .catch((err) => {
-        if (mounted) setError(err.message);
+        if (!mountedRef.current) return;
+        setError(err.message);
+      })
+      .finally(() => {
+        if (!mountedRef.current) return;
+        setLoading(false);
       });
-
-    return () => { mounted = false; };
   }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    load();
+    const timer = setInterval(load, 15000);
+    return () => {
+      mountedRef.current = false;
+      clearInterval(timer);
+    };
+  }, [load]);
 
   if (error) {
     return (
@@ -41,7 +60,19 @@ export function TrendFeed() {
     <div className={styles.feed}>
       <div className={styles.header}>
         <h3>Live Trend Signals</h3>
-        <span className={styles.badge}>Auto</span>
+        <div className={styles.headerRight}>
+          <span className={styles.status}>
+            {loading
+              ? 'Updating…'
+              : lastUpdated
+                ? `Updated ${new Date(lastUpdated).toLocaleTimeString()}`
+                : 'Idle'}
+          </span>
+          <button onClick={load} className="btn btn-secondary" disabled={loading}>
+            Refresh
+          </button>
+          <span className={styles.badge}>Auto</span>
+        </div>
       </div>
       {trends.length === 0 ? (
         <div className={styles.empty}>No trends captured yet.</div>

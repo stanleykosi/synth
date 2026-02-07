@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './PipelineStatus.module.css';
 
 interface AgentStatus {
@@ -17,13 +17,31 @@ interface AgentStatus {
 export function PipelineStatus() {
   const [status, setStatus] = useState<AgentStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetch('/api/status')
       .then((res) => res.ok ? res.json() : Promise.reject(new Error('Failed to load status')))
-      .then(setStatus)
-      .catch((err) => setError(err.message));
+      .then((data: AgentStatus) => {
+        if (!mountedRef.current) return;
+        setStatus(data);
+        setError(null);
+      })
+      .catch((err) => {
+        if (!mountedRef.current) return;
+        setError(err.message);
+      });
   }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    load();
+    const timer = setInterval(load, 10000);
+    return () => {
+      mountedRef.current = false;
+      clearInterval(timer);
+    };
+  }, [load]);
 
   if (error) {
     return <div className={styles.error}>Status unavailable.</div>;
