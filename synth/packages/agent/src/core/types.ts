@@ -11,6 +11,21 @@ export interface TrendSignal {
   meta?: Record<string, unknown>;
 }
 
+export interface TrendPoolEntry extends TrendSignal {
+  detectedAt: string;
+  runId?: string;
+  rank: number;
+  key: string;
+}
+
+export interface TrendPostRecord {
+  id: string;
+  createdAt: string;
+  twitter: string;
+  farcaster: string;
+  trendKeys: string[];
+}
+
 export type DropType = 'token' | 'nft' | 'dapp' | 'contract';
 export type AppMode = 'onchain' | 'offchain';
 export type ContractType = 'erc20' | 'erc721' | 'erc1155' | 'none';

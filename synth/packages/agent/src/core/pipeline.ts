@@ -26,6 +26,7 @@ import { buildAgentContext } from '../services/context.js';
 import { generateDropContent } from '../services/content.js';
 import { markSuggestionReviewed } from '../services/chain.js';
 import { saveArtifacts } from '../services/artifacts.js';
+import { appendTrendPool, loadTrendPoolWindow, sortTrendEntries } from '../services/trend-pool.js';
 
 function nowIso() {
   return new Date().toISOString();
@@ -305,6 +306,7 @@ async function detectSignals(input: {
   config: AgentConfig;
   llmContext: string;
   trendSkills: string;
+  runId?: string;
 }): Promise<{ ranked: TrendSignal[]; evidenceMap: Record<string, EvidenceItem[]> }> {
   const { baseDir, config, llmContext, trendSkills } = input;
 
@@ -398,6 +400,16 @@ async function detectSignals(input: {
   await appendMarkdown(memoryPaths(baseDir).trendsMd, `- ${nowIso()} captured ${ranked.length} signals`);
   await log(baseDir, 'info', `Signal detection ranked ${ranked.length} signals.`);
 
+  const maxPerRunRaw = process.env.SYNTH_TREND_POOL_MAX_PER_RUN
+    ? Number(process.env.SYNTH_TREND_POOL_MAX_PER_RUN)
+    : 25;
+  const maxPerRun = Number.isFinite(maxPerRunRaw) && maxPerRunRaw > 0 ? maxPerRunRaw : 25;
+  await appendTrendPool(baseDir, ranked, {
+    runId: input.runId,
+    detectedAt: nowIso(),
+    maxPerRun
+  });
+
   return { ranked, evidenceMap };
 }
 
@@ -481,16 +493,87 @@ export async function runDailyCycle(
     const memoryContext = await buildMemoryContext(baseDir);
     const llmContext = [agentContext, memoryContext].filter(Boolean).join('\n\n');
     const skills = await buildSkillsContext(baseDir);
-    const trendSkills = await buildSkillsContext(baseDir, { include: ['trend-detector', 'dune-analyst'] });
 
     await setPhase('signal-detection');
 
-    const { ranked, evidenceMap } = await detectSignals({
-      baseDir,
-      config,
-      llmContext,
-      trendSkills
-    });
+    const lookbackHoursRaw = process.env.SYNTH_BUILD_TREND_LOOKBACK_HOURS
+      ? Number(process.env.SYNTH_BUILD_TREND_LOOKBACK_HOURS)
+      : 12;
+    const lookbackHours = Number.isFinite(lookbackHoursRaw) && lookbackHoursRaw > 0 ? lookbackHoursRaw : 12;
+    const poolEntries = await loadTrendPoolWindow(baseDir, lookbackHours);
+    if (poolEntries.length === 0) {
+      await log(baseDir, 'warn', 'No trend pool signals available for build window.');
+      currentState = {
+        ...currentState,
+        currentPhase: 'idle',
+        lastRunAt: nowIso(),
+        lastResult: 'skipped',
+        phaseStartedAt: nowIso(),
+        runId: undefined,
+        runStartedAt: undefined
+      };
+      await saveState(baseDir, currentState);
+      return;
+    }
+    await log(baseDir, 'info', `Using trend pool window of ${Math.max(1, lookbackHours)}h with ${poolEntries.length} entries.`);
+
+    const boostedPool = applyRecencyBoost(sortTrendEntries(poolEntries), config);
+    const suggestionSignals = boostedPool.filter((signal) => signal.source === 'suggestion');
+    const otherSignals = boostedPool.filter((signal) => signal.source !== 'suggestion');
+
+    const maxSignals = Math.max(1, config.pipeline.maxSignals);
+    const cap = Math.max(1, maxSignals - suggestionSignals.length);
+
+    const deduped: TrendSignal[] = [];
+    const seen = new Set<string>();
+
+    for (const signal of otherSignals) {
+      const key = signal.summary.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(signal);
+      if (deduped.length >= cap) break;
+    }
+
+    for (const signal of suggestionSignals) {
+      const key = signal.summary.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(signal);
+    }
+
+    const ranked = [...deduped].sort((a, b) => b.score - a.score);
+    if (ranked.length === 0) {
+      await log(baseDir, 'warn', 'No deduped signals available in trend pool window.');
+      currentState = {
+        ...currentState,
+        currentPhase: 'idle',
+        lastRunAt: nowIso(),
+        lastResult: 'skipped',
+        phaseStartedAt: nowIso(),
+        runId: undefined,
+        runStartedAt: undefined
+      };
+      await saveState(baseDir, currentState);
+      return;
+    }
+
+    const evidenceMap: Record<string, EvidenceItem[]> = {};
+    const missingEvidence: TrendSignal[] = [];
+    for (const signal of ranked) {
+      const candidate = signal.meta?.evidence;
+      if (Array.isArray(candidate)) {
+        evidenceMap[signal.id] = candidate.filter((item) => item && typeof item === 'object') as EvidenceItem[];
+      } else {
+        missingEvidence.push(signal);
+      }
+    }
+    if (missingEvidence.length > 0 && config.research.enabled) {
+      const fetched = await buildEvidence(missingEvidence, config);
+      for (const [key, value] of Object.entries(fetched)) {
+        evidenceMap[key] = value;
+      }
+    }
 
     const prioritySuggestion = selectPrioritySuggestion(ranked, config.scoring.stakePriorityEth || 0.1);
     const highestStakeSuggestion = selectHighestStakeSuggestion(ranked);
@@ -1039,7 +1122,8 @@ export async function runSignalDetection(
       baseDir,
       config,
       llmContext,
-      trendSkills
+      trendSkills,
+      runId: options?.runId
     });
 
     await log(baseDir, 'info', `Signal-only detection captured ${ranked.length} signals.`);

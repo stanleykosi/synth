@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import rateLimit from 'express-rate-limit';
 import type { AgentConfig } from '../core/config.js';
-import { loadDrops, loadLogs, loadState, loadTrends, saveState, saveDrops, loadDecisions, loadChat, saveChat, saveLogs, saveTrends, saveDecisions, memoryPaths } from '../core/memory.js';
+import { loadDrops, loadLogs, loadState, loadTrends, saveState, saveDrops, loadDecisions, loadChat, saveChat, saveLogs, saveTrends, saveDecisions, memoryPaths, saveTrendPool, saveTrendPosts } from '../core/memory.js';
 import { buildMetrics } from '../core/metrics.js';
 import { getSuggestionCount, getWalletStatus } from './chain.js';
 import { fetchGithubStarsTotal, fetchGithubRateLimit } from './github.js';
@@ -12,6 +12,7 @@ import { clearArtifacts } from './artifacts.js';
 import { log } from '../core/logger.js';
 import type { DropRecord } from '../core/types.js';
 import { runChat } from './chat.js';
+import { runTrendPost } from './trend-post.js';
 
 interface SkillRecord {
   name: string;
@@ -302,6 +303,12 @@ export function startServer(baseDir: string, config: AgentConfig) {
       return res.json(updated);
     }
 
+    if (action === 'trend-post') {
+      await runTrendPost(baseDir);
+      await log(baseDir, 'info', 'Manual trend post triggered via admin.');
+      return res.json({ ok: true });
+    }
+
     if (action === 'override') {
       if (!signalId) {
         return res.status(400).json({ error: 'Missing signalId' });
@@ -339,6 +346,8 @@ export function startServer(baseDir: string, config: AgentConfig) {
 
     if (action === 'clear-trends') {
       await saveTrends(baseDir, []);
+      await saveTrendPool(baseDir, []);
+      await saveTrendPosts(baseDir, []);
       const { trendsMd } = memoryPaths(baseDir);
       await fs.mkdir(path.dirname(trendsMd), { recursive: true });
       await fs.writeFile(trendsMd, '');
@@ -356,6 +365,8 @@ export function startServer(baseDir: string, config: AgentConfig) {
       await Promise.all([
         saveDrops(baseDir, []),
         saveTrends(baseDir, []),
+        saveTrendPool(baseDir, []),
+        saveTrendPosts(baseDir, []),
         saveDecisions(baseDir, []),
         saveLogs(baseDir, []),
         saveChat(baseDir, []),

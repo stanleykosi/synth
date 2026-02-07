@@ -7,6 +7,7 @@ import { runDailyCycle } from './core/pipeline.js';
 import { log } from './core/logger.js';
 import { processQueue } from './core/queue.js';
 import { startMonitor } from './services/monitor.js';
+import { startTrendScheduler } from './services/trend-scheduler.js';
 
 const baseDir = resolveAgentBase();
 loadEnvironment(baseDir);
@@ -29,5 +30,12 @@ if (mode === 'cycle') {
     startScheduler(baseDir, config);
   } else {
     await log(baseDir, 'info', 'Scheduler disabled. Set SYNTH_ENABLE_SCHEDULER=true to enable.');
+  }
+
+  const enableTrendScheduler = (process.env.SYNTH_ENABLE_TREND_SCHEDULER ?? 'true') === 'true';
+  if (enableTrendScheduler) {
+    startTrendScheduler(baseDir);
+  } else {
+    await log(baseDir, 'info', 'Trend scheduler disabled. Set SYNTH_ENABLE_TREND_SCHEDULER=true to enable.');
   }
 }

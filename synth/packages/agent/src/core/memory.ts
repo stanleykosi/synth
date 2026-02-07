@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { resolveMemoryDir } from '../utils/paths.js';
-import type { TrendSignal, DropRecord, LogEntry, AgentState, DecisionRecord, ChatMessage } from './types.js';
+import type { TrendSignal, DropRecord, LogEntry, AgentState, DecisionRecord, ChatMessage, TrendPoolEntry, TrendPostRecord } from './types.js';
 
 async function ensureDir(dir: string) {
   await fs.mkdir(dir, { recursive: true });
@@ -18,6 +18,8 @@ export function memoryPaths(baseDir: string) {
     decisionsJson: path.join(memoryDir, 'decisions.json'),
     chatJson: path.join(memoryDir, 'chat.json'),
     queueJson: path.join(memoryDir, 'queue.json'),
+    trendPoolJson: path.join(memoryDir, 'trend-pool.json'),
+    trendPostsJson: path.join(memoryDir, 'trend-posts.json'),
     artifactsDir: path.join(memoryDir, 'artifacts'),
     monitorJson: path.join(memoryDir, 'monitor.json'),
     trendsMd: path.join(memoryDir, 'trends.md'),
@@ -105,4 +107,24 @@ export async function loadChat(baseDir: string): Promise<ChatMessage[]> {
 export async function saveChat(baseDir: string, chat: ChatMessage[]) {
   const { chatJson } = memoryPaths(baseDir);
   await writeJson(chatJson, chat);
+}
+
+export async function loadTrendPool(baseDir: string): Promise<TrendPoolEntry[]> {
+  const { trendPoolJson } = memoryPaths(baseDir);
+  return readJson(trendPoolJson, [] as TrendPoolEntry[]);
+}
+
+export async function saveTrendPool(baseDir: string, pool: TrendPoolEntry[]) {
+  const { trendPoolJson } = memoryPaths(baseDir);
+  await writeJson(trendPoolJson, pool);
+}
+
+export async function loadTrendPosts(baseDir: string): Promise<TrendPostRecord[]> {
+  const { trendPostsJson } = memoryPaths(baseDir);
+  return readJson(trendPostsJson, [] as TrendPostRecord[]);
+}
+
+export async function saveTrendPosts(baseDir: string, posts: TrendPostRecord[]) {
+  const { trendPostsJson } = memoryPaths(baseDir);
+  await writeJson(trendPostsJson, posts);
 }

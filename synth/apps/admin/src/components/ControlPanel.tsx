@@ -69,6 +69,19 @@ export function ControlPanel() {
     }
   };
 
+  const handleTrendPost = async () => {
+    setError(null);
+    const res = await fetch('/api/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'trend-post' }),
+    });
+    if (!res.ok) {
+      setError('Failed to post trends');
+      return;
+    }
+  };
+
   const handleUnlock = async () => {
     setError(null);
     const res = await fetch('/api/control', {
@@ -187,6 +200,9 @@ export function ControlPanel() {
         </button>
         <button onClick={handleDetect} className="btn btn-secondary">
           Run Signal Detection
+        </button>
+        <button onClick={handleTrendPost} className="btn btn-secondary">
+          Post Trends Now
         </button>
         <button onClick={handleUnlock} className="btn btn-secondary">
           Unlock Run

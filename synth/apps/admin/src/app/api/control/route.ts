@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 interface ControlPayload {
-  action: 'pause' | 'resume' | 'run' | 'detect' | 'override' | 'unlock' | 'clear-drops' | 'clear-trends' | 'clear-chat' | 'reset-memory' | 'clear-queue';
+  action: 'pause' | 'resume' | 'run' | 'detect' | 'trend-post' | 'override' | 'unlock' | 'clear-drops' | 'clear-trends' | 'clear-chat' | 'reset-memory' | 'clear-queue';
   signalId?: string;
   force?: boolean;
 }
@@ -14,6 +14,7 @@ function isValidPayload(payload: unknown): payload is ControlPayload {
     data.action === 'resume' ||
     data.action === 'run' ||
     data.action === 'detect' ||
+    data.action === 'trend-post' ||
     data.action === 'unlock' ||
     data.action === 'clear-drops' ||
     data.action === 'clear-trends' ||
