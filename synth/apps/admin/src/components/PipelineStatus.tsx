@@ -9,6 +9,9 @@ interface AgentStatus {
   lastRunAt?: string;
   lastResult?: string;
   lastError?: string;
+  lastSignalAt?: string;
+  lastSignalResult?: string;
+  lastSignalError?: string;
 }
 
 export function PipelineStatus() {
@@ -48,8 +51,19 @@ export function PipelineStatus() {
         <span className={styles.label}>Last Result</span>
         <span className={styles.value}>{status.lastResult ?? '—'}</span>
       </div>
+      <div className={styles.row}>
+        <span className={styles.label}>Last Detection</span>
+        <span className={styles.value}>{status.lastSignalAt ?? '—'}</span>
+      </div>
+      <div className={styles.row}>
+        <span className={styles.label}>Detection Result</span>
+        <span className={styles.value}>{status.lastSignalResult ?? '—'}</span>
+      </div>
       {status.lastError && (
         <div className={styles.errorDetail}>Error: {status.lastError}</div>
+      )}
+      {status.lastSignalError && (
+        <div className={styles.errorDetail}>Detection Error: {status.lastSignalError}</div>
       )}
     </div>
   );

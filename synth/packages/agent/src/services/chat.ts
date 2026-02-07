@@ -48,7 +48,10 @@ export async function runChat(baseDir: string, message: string, history: ChatMes
     'Speak like a calm, capable operator — confident, human, and non‑robotic.',
     'Prefer short paragraphs; avoid sterile bullet lists unless explicitly requested.',
     'Avoid generic AI disclaimers; speak as the operator in charge.',
-    'When asked about capabilities or status, describe the full pipeline as a narrative: what you monitor (web_search, RSS, Farcaster, Dune, suggestions), how you decide, what you build (contracts + webapp/dapp), how you deploy (repo + Vercel + testnet), and how you broadcast.',
+    'Do not lead with a full pipeline description unless the user explicitly asks how you work.',
+    'If the user greets or asks for help, respond conversationally and ask one clarifying question.',
+    'When asked about capabilities or status, describe the pipeline, but keep it compact and human.',
+    'We do not use Discord. Do not mention Discord.',
     'Use the context provided, and ask clarifying questions when needed.',
     'Output JSON only.'
   ].join('\n');

@@ -56,6 +56,19 @@ export function ControlPanel() {
     }
   };
 
+  const handleDetect = async () => {
+    setError(null);
+    const res = await fetch('/api/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'detect' }),
+    });
+    if (!res.ok) {
+      setError('Failed to start signal detection');
+      return;
+    }
+  };
+
   const handleUnlock = async () => {
     setError(null);
     const res = await fetch('/api/control', {
@@ -81,6 +94,22 @@ export function ControlPanel() {
     });
     if (!res.ok) {
       setError('Failed to clear drops');
+      return;
+    }
+  };
+
+  const handleClearTrends = async () => {
+    if (!confirm('Clear all trend signals? This cannot be undone.')) {
+      return;
+    }
+    setError(null);
+    const res = await fetch('/api/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'clear-trends' }),
+    });
+    if (!res.ok) {
+      setError('Failed to clear trends');
       return;
     }
   };
@@ -156,6 +185,9 @@ export function ControlPanel() {
         <button onClick={handleRun} className="btn btn-secondary">
           Run Now
         </button>
+        <button onClick={handleDetect} className="btn btn-secondary">
+          Run Signal Detection
+        </button>
         <button onClick={handleUnlock} className="btn btn-secondary">
           Unlock Run
         </button>
@@ -164,6 +196,9 @@ export function ControlPanel() {
         </button>
         <button onClick={handleClearDrops} className="btn btn-secondary">
           Clear Drops
+        </button>
+        <button onClick={handleClearTrends} className="btn btn-secondary">
+          Clear Trends
         </button>
         <button onClick={handleResetMemory} className="btn btn-secondary">
           Reset Memory

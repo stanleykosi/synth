@@ -5,7 +5,7 @@ import type { AgentConfig } from './config.js';
 import { finalizeScores } from './scoring.js';
 import { loadDrops, loadState, saveDrops, saveState, appendMarkdown, memoryPaths, saveTrends, loadDecisions, saveDecisions, loadTrends } from './memory.js';
 import { log } from './logger.js';
-import type { DropRecord, TrendSignal, DropType, ContractType, AppMode, AgentState } from './types.js';
+import type { DropRecord, TrendSignal, DropType, ContractType, AppMode, AgentState, EvidenceItem } from './types.js';
 import { fetchTwitterSignals } from '../sources/twitter.js';
 import { fetchWebSignals } from '../sources/web.js';
 import { fetchFarcasterSignals } from '../sources/farcaster.js';
@@ -300,6 +300,105 @@ async function ensureTemplateFiles(baseDir: string) {
   await fs.mkdir(path.dirname(trendsMd), { recursive: true });
 }
 
+async function detectSignals(input: {
+  baseDir: string;
+  config: AgentConfig;
+  llmContext: string;
+  trendSkills: string;
+}): Promise<{ ranked: TrendSignal[]; evidenceMap: Record<string, EvidenceItem[]> }> {
+  const { baseDir, config, llmContext, trendSkills } = input;
+
+  const sources = [
+    { name: 'twitter', fetch: fetchTwitterSignals(config) },
+    { name: 'web', fetch: fetchWebSignals(config) },
+    { name: 'farcaster', fetch: fetchFarcasterSignals(config) },
+    { name: 'onchain', fetch: fetchOnchainSignals(config, { skills: trendSkills, context: llmContext }) },
+    { name: 'graph', fetch: fetchGraphSignals(config) },
+    { name: 'suggestion', fetch: fetchSuggestionSignals(config) }
+  ];
+
+  const settled = await Promise.allSettled(sources.map((source) => source.fetch));
+  const signalBuckets: TrendSignal[][] = [];
+  for (let i = 0; i < settled.length; i += 1) {
+    const result = settled[i];
+    if (result.status === 'fulfilled') {
+      signalBuckets.push(result.value);
+    } else {
+      const message = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      await log(baseDir, 'warn', `Signal source ${sources[i].name} failed: ${message}`);
+      signalBuckets.push([]);
+    }
+  }
+
+  const [twitter, web, farcaster, onchain, graph, suggestions] = signalBuckets;
+
+  const signals = finalizeScores([
+    ...twitter,
+    ...web,
+    ...farcaster,
+    ...onchain,
+    ...graph,
+    ...suggestions
+  ]);
+
+  const boosted = applyRecencyBoost(signals, config);
+
+  const suggestionSignals = boosted.filter((signal) => signal.source === 'suggestion');
+  const otherSignals = boosted.filter((signal) => signal.source !== 'suggestion');
+
+  const maxSignals = Math.max(1, config.pipeline.maxSignals);
+  const cap = Math.max(1, maxSignals - suggestionSignals.length);
+
+  const deduped: TrendSignal[] = [];
+  const seen = new Set<string>();
+
+  for (const signal of otherSignals) {
+    const key = signal.summary.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(signal);
+    if (deduped.length >= cap) break;
+  }
+
+  for (const signal of suggestionSignals) {
+    const key = signal.summary.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(signal);
+  }
+
+  const evidenceMap = await buildEvidence(deduped, config);
+  const validations = await validateTrends({
+    signals: deduped,
+    evidence: evidenceMap,
+    config,
+    skills: trendSkills,
+    context: llmContext
+  });
+
+  const enriched = deduped.map((signal) => {
+    const validation = validations[signal.id];
+    const validationBoost = validation ? validation.composite * config.validation.weight : 0;
+    const score = Math.max(0, Math.min(10, signal.score + validationBoost));
+    return {
+      ...signal,
+      score,
+      meta: {
+        ...(signal.meta ?? {}),
+        evidence: evidenceMap[signal.id] ?? [],
+        validation
+      }
+    };
+  });
+
+  const ranked = [...enriched].sort((a, b) => b.score - a.score);
+
+  await saveTrends(baseDir, ranked);
+  await appendMarkdown(memoryPaths(baseDir).trendsMd, `- ${nowIso()} captured ${ranked.length} signals`);
+
+  return { ranked, evidenceMap };
+}
+
 export async function runDailyCycle(
   baseDir: string,
   options?: { force?: boolean; runId?: string; source?: string; reason?: string }
@@ -384,94 +483,12 @@ export async function runDailyCycle(
 
     await setPhase('signal-detection');
 
-    const sources = [
-      { name: 'twitter', fetch: fetchTwitterSignals(config) },
-      { name: 'web', fetch: fetchWebSignals(config) },
-      { name: 'farcaster', fetch: fetchFarcasterSignals(config) },
-      { name: 'onchain', fetch: fetchOnchainSignals(config, { skills: trendSkills, context: llmContext }) },
-      { name: 'graph', fetch: fetchGraphSignals(config) },
-      { name: 'suggestion', fetch: fetchSuggestionSignals(config) }
-    ];
-
-    const settled = await Promise.allSettled(sources.map((source) => source.fetch));
-    const signalBuckets: TrendSignal[][] = [];
-    for (let i = 0; i < settled.length; i += 1) {
-      const result = settled[i];
-      if (result.status === 'fulfilled') {
-        signalBuckets.push(result.value);
-      } else {
-        const message = result.reason instanceof Error ? result.reason.message : String(result.reason);
-        await log(baseDir, 'warn', `Signal source ${sources[i].name} failed: ${message}`);
-        signalBuckets.push([]);
-      }
-    }
-
-    const [twitter, web, farcaster, onchain, graph, suggestions] = signalBuckets;
-
-    const signals = finalizeScores([
-      ...twitter,
-      ...web,
-      ...farcaster,
-      ...onchain,
-      ...graph,
-      ...suggestions
-    ]);
-
-    const boosted = applyRecencyBoost(signals, config);
-
-    const suggestionSignals = boosted.filter((signal) => signal.source === 'suggestion');
-    const otherSignals = boosted.filter((signal) => signal.source !== 'suggestion');
-
-    const maxSignals = Math.max(1, config.pipeline.maxSignals);
-    const cap = Math.max(1, maxSignals - suggestionSignals.length);
-
-    const deduped: TrendSignal[] = [];
-    const seen = new Set<string>();
-
-    for (const signal of otherSignals) {
-      const key = signal.summary.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      deduped.push(signal);
-      if (deduped.length >= cap) break;
-    }
-
-    for (const signal of suggestionSignals) {
-      const key = signal.summary.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      deduped.push(signal);
-    }
-
-    const evidenceMap = await buildEvidence(deduped, config);
-    const validations = await validateTrends({
-      signals: deduped,
-      evidence: evidenceMap,
+    const { ranked, evidenceMap } = await detectSignals({
+      baseDir,
       config,
-      skills: trendSkills,
-      context: llmContext
+      llmContext,
+      trendSkills
     });
-
-    const enriched = deduped.map((signal) => {
-      const validation = validations[signal.id];
-      const validationBoost = validation ? validation.composite * config.validation.weight : 0;
-      const score = Math.max(0, Math.min(10, signal.score + validationBoost));
-      return {
-        ...signal,
-        score,
-        meta: {
-          ...(signal.meta ?? {}),
-          evidence: evidenceMap[signal.id] ?? [],
-          validation
-        }
-      };
-    });
-    
-
-    const ranked = [...enriched].sort((a, b) => b.score - a.score);
-
-    await saveTrends(baseDir, ranked);
-    await appendMarkdown(memoryPaths(baseDir).trendsMd, `- ${nowIso()} captured ${ranked.length} signals`);
 
     const prioritySuggestion = selectPrioritySuggestion(ranked, config.scoring.stakePriorityEth || 0.1);
     const highestStakeSuggestion = selectHighestStakeSuggestion(ranked);
@@ -970,6 +987,80 @@ export async function runDailyCycle(
       lastRunAt: nowIso(),
       lastResult: 'failed',
       lastError: message,
+      phaseStartedAt: nowIso(),
+      runId: undefined,
+      runStartedAt: undefined
+    };
+    await saveState(baseDir, currentState);
+  }
+}
+
+export async function runSignalDetection(
+  baseDir: string,
+  options?: { runId?: string; source?: string; reason?: string }
+) {
+  await ensureTemplateFiles(baseDir);
+  const config = await loadConfig(baseDir);
+  const state = await loadState(baseDir);
+  let currentState = state;
+
+  if (state.paused) {
+    await log(baseDir, 'warn', 'Agent is paused. Skipping signal detection.');
+    return;
+  }
+  if (state.currentPhase !== 'idle') {
+    await log(baseDir, 'warn', `Agent is already running (${state.currentPhase}). Skipping overlapping detection.`);
+    return;
+  }
+
+  try {
+    const setPhase = async (phase: AgentState['currentPhase']) => {
+      currentState = {
+        ...currentState,
+        currentPhase: phase,
+        phaseStartedAt: nowIso(),
+        runId: options?.runId ?? currentState.runId,
+        runStartedAt: currentState.runStartedAt ?? nowIso()
+      };
+      await saveState(baseDir, currentState);
+    };
+
+    const agentContext = await buildAgentContext(baseDir);
+    const memoryContext = await buildMemoryContext(baseDir);
+    const llmContext = [agentContext, memoryContext].filter(Boolean).join('\n\n');
+    const trendSkills = await buildSkillsContext(baseDir, { include: ['trend-detector', 'dune-analyst'] });
+
+    await setPhase('signal-detection');
+    await log(baseDir, 'info', `Signal-only detection started${options?.reason ? ` (${options.reason})` : ''}.`);
+
+    const { ranked } = await detectSignals({
+      baseDir,
+      config,
+      llmContext,
+      trendSkills
+    });
+
+    await log(baseDir, 'info', `Signal-only detection captured ${ranked.length} signals.`);
+    currentState = {
+      ...currentState,
+      currentPhase: 'idle',
+      lastSignalAt: nowIso(),
+      lastSignalResult: ranked.length > 0 ? 'success' : 'skipped',
+      lastSignalError: undefined,
+      phaseStartedAt: nowIso(),
+      runId: undefined,
+      runStartedAt: undefined
+    };
+    await saveState(baseDir, currentState);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await log(baseDir, 'error', message);
+    currentState = {
+      ...currentState,
+      currentPhase: 'idle',
+      lastSignalAt: nowIso(),
+      lastSignalResult: 'failed',
+      lastSignalError: message,
       phaseStartedAt: nowIso(),
       runId: undefined,
       runStartedAt: undefined

@@ -18,6 +18,7 @@ interface QueueState {
   items: QueueItem[];
   active?: {
     id: string;
+    type?: string;
     startedAt: string;
   };
 }
@@ -55,7 +56,7 @@ export function QueuePanel() {
       <h3>Run Queue</h3>
       {queue.active && (
         <div className={styles.active}>
-          <span>Active</span>
+          <span>Active {queue.active.type ? `(${queue.active.type})` : ''}</span>
           <strong>{queue.active.id}</strong>
           <span>{new Date(queue.active.startedAt).toLocaleString()}</span>
         </div>
@@ -68,7 +69,7 @@ export function QueuePanel() {
             <div key={item.id} className={styles.item}>
               <div className={styles.row}>
                 <strong>{item.id}</strong>
-                <span className={styles.meta}>{item.requestedBy}</span>
+                <span className={styles.meta}>{item.type} · {item.requestedBy}</span>
               </div>
               <div className={styles.row}>
                 <span>{new Date(item.requestedAt).toLocaleString()}</span>

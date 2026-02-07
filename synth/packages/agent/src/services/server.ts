@@ -3,11 +3,11 @@ import path from 'path';
 import fs from 'fs/promises';
 import rateLimit from 'express-rate-limit';
 import type { AgentConfig } from '../core/config.js';
-import { loadDrops, loadLogs, loadState, loadTrends, saveState, saveDrops, loadDecisions, loadChat, saveChat, saveLogs, saveTrends, saveDecisions } from '../core/memory.js';
+import { loadDrops, loadLogs, loadState, loadTrends, saveState, saveDrops, loadDecisions, loadChat, saveChat, saveLogs, saveTrends, saveDecisions, memoryPaths } from '../core/memory.js';
 import { buildMetrics } from '../core/metrics.js';
 import { getSuggestionCount, getWalletStatus } from './chain.js';
 import { fetchGithubStarsTotal, fetchGithubRateLimit } from './github.js';
-import { enqueueRun, clearQueue, getQueueState } from '../core/queue.js';
+import { enqueueRun, enqueueDetection, clearQueue, getQueueState } from '../core/queue.js';
 import { clearArtifacts } from './artifacts.js';
 import { log } from '../core/logger.js';
 import type { DropRecord } from '../core/types.js';
@@ -291,6 +291,17 @@ export function startServer(baseDir: string, config: AgentConfig) {
       return res.json(updated);
     }
 
+    if (action === 'detect') {
+      await enqueueDetection(baseDir, {
+        requestedBy: 'admin',
+        reason: 'Manual signal detection',
+        force: Boolean(force),
+        source: 'admin'
+      });
+      const updated = await loadState(baseDir);
+      return res.json(updated);
+    }
+
     if (action === 'override') {
       if (!signalId) {
         return res.status(400).json({ error: 'Missing signalId' });
@@ -323,6 +334,15 @@ export function startServer(baseDir: string, config: AgentConfig) {
     if (action === 'clear-drops') {
       await saveDrops(baseDir, []);
       await log(baseDir, 'info', 'Drops cleared via admin.');
+      return res.json({ ok: true });
+    }
+
+    if (action === 'clear-trends') {
+      await saveTrends(baseDir, []);
+      const { trendsMd } = memoryPaths(baseDir);
+      await fs.mkdir(path.dirname(trendsMd), { recursive: true });
+      await fs.writeFile(trendsMd, '');
+      await log(baseDir, 'info', 'Trends cleared via admin.');
       return res.json({ ok: true });
     }
 

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 interface ControlPayload {
-  action: 'pause' | 'resume' | 'run' | 'override' | 'unlock' | 'clear-drops' | 'clear-chat' | 'reset-memory' | 'clear-queue';
+  action: 'pause' | 'resume' | 'run' | 'detect' | 'override' | 'unlock' | 'clear-drops' | 'clear-trends' | 'clear-chat' | 'reset-memory' | 'clear-queue';
   signalId?: string;
   force?: boolean;
 }
@@ -13,13 +13,15 @@ function isValidPayload(payload: unknown): payload is ControlPayload {
     data.action === 'pause' ||
     data.action === 'resume' ||
     data.action === 'run' ||
+    data.action === 'detect' ||
     data.action === 'unlock' ||
     data.action === 'clear-drops' ||
+    data.action === 'clear-trends' ||
     data.action === 'clear-chat' ||
     data.action === 'reset-memory' ||
     data.action === 'clear-queue'
   ) {
-    if (data.action === 'run' && data.force !== undefined && typeof data.force !== 'boolean') {
+    if ((data.action === 'run' || data.action === 'detect') && data.force !== undefined && typeof data.force !== 'boolean') {
       return false;
     }
     return true;

@@ -54,6 +54,9 @@ export interface AgentState {
   lastRunAt?: string;
   lastResult?: 'success' | 'failed' | 'skipped';
   lastError?: string;
+  lastSignalAt?: string;
+  lastSignalResult?: 'success' | 'failed' | 'skipped';
+  lastSignalError?: string;
   overrideSignalId?: string;
 }
 
