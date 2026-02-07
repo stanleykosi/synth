@@ -5,6 +5,8 @@ export interface RepoResult {
   name: string;
   htmlUrl: string;
   cloneUrl: string;
+  id?: number;
+  fullName?: string;
 }
 
 export async function ensureRepo(params: { name: string; description: string }): Promise<RepoResult> {
@@ -22,7 +24,9 @@ export async function ensureRepo(params: { name: string; description: string }):
     return {
       name: existing.data.name,
       htmlUrl: existing.data.html_url,
-      cloneUrl: existing.data.clone_url
+      cloneUrl: existing.data.clone_url,
+      id: existing.data.id,
+      fullName: existing.data.full_name
     };
   } catch (error) {
     if (org) {
@@ -36,7 +40,9 @@ export async function ensureRepo(params: { name: string; description: string }):
       return {
         name: created.data.name,
         htmlUrl: created.data.html_url,
-        cloneUrl: created.data.clone_url
+        cloneUrl: created.data.clone_url,
+        id: created.data.id,
+        fullName: created.data.full_name
       };
     }
 
@@ -50,7 +56,9 @@ export async function ensureRepo(params: { name: string; description: string }):
       return {
         name: created.data.name,
         htmlUrl: created.data.html_url,
-        cloneUrl: created.data.clone_url
+        cloneUrl: created.data.clone_url,
+        id: created.data.id,
+        fullName: created.data.full_name
       };
     } catch (createError) {
       const status = (createError as { status?: number }).status;
@@ -59,7 +67,9 @@ export async function ensureRepo(params: { name: string; description: string }):
         return {
           name: existing.data.name,
           htmlUrl: existing.data.html_url,
-          cloneUrl: existing.data.clone_url
+          cloneUrl: existing.data.clone_url,
+          id: existing.data.id,
+          fullName: existing.data.full_name
         };
       }
       throw createError;

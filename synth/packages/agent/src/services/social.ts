@@ -21,6 +21,20 @@ export interface SocialCopy {
   farcaster: string;
 }
 
+function sanitizeLine(text: string): string {
+  return text
+    .replace(/[—–]/g, '-')
+    .replace(/#[\p{L}0-9_]+/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function clamp(text: string, max = 280): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  return cut.replace(/\s+\S*$/, '').trim();
+}
+
 export async function generateSocialCopy(input: {
   drop: DropRecord;
   trend: TrendSignal;
@@ -31,15 +45,18 @@ export async function generateSocialCopy(input: {
   const maxTokens = process.env.SYNTH_LLM_MAX_TOKENS ? Number(process.env.SYNTH_LLM_MAX_TOKENS) : 800;
 
   const prompt = [
-    'You are SYNTH. Generate a short social post set for a launch.',
+    'You are SYNTH. Generate a clean launch announcement.',
     'Return JSON only. Use the template structure below.',
-    'Template for thread:',
-    '1) SYNTH drop: <name> — <tagline> | Signal: <summary>',
-    '2) What shipped: <description>',
-    '3) Repo: <link> | Web: <link or "N/A">',
+    'Thread requirements:',
+    '- 4 to 6 tweets, each <= 280 characters.',
+    '- No hashtags. No em dashes. No invented metrics.',
+    '- Use only the provided drop details and links.',
+    'Template:',
+    '1) SYNTH drop: <name>. <tagline>. Signal: <summary>.',
+    '2) What shipped: <description>.',
+    '3) Repo: <link> | Web: <link or "N/A">.',
     '4) If contract exists: Contract: <address> | Explorer: <link>. If no contract: "Offchain build (no contract)".',
-    '5) CTA: submit suggestions or feedback',
-    'Keep each tweet <= 280 characters.',
+    '5) Optional: one sentence CTA (short).',
     'Farcaster should be a single post summarizing the drop with repo + web + explorer links when available.',
     input.skills ? 'Use the skills guidance provided when relevant.' : '',
     input.context ? 'Follow the persona and operator preferences provided.' : ''
@@ -70,10 +87,13 @@ export async function generateSocialCopy(input: {
     if (!result || typeof result !== 'object') return null;
     const data = result as SocialCopy;
     if (!Array.isArray(data.thread) || typeof data.farcaster !== 'string') return null;
-    return {
-      thread: data.thread.filter((line) => typeof line === 'string' && line.trim().length > 0).slice(0, 6),
-      farcaster: data.farcaster.trim()
-    };
+    const thread = data.thread
+      .filter((line) => typeof line === 'string' && line.trim().length > 0)
+      .map((line) => clamp(sanitizeLine(line)))
+      .filter(Boolean)
+      .slice(0, 6);
+    const farcaster = clamp(sanitizeLine(data.farcaster));
+    return { thread, farcaster };
   } catch {
     return null;
   }

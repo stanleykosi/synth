@@ -16,7 +16,7 @@ import { runForge, parseDeployedAddress, readBroadcastGasInfo } from '../service
 import { ensureRepo, updateRepoDescription } from '../services/github.js';
 import { prepareRepoTemplate, initAndPushRepo } from '../services/repo.js';
 import { generateRepoFiles } from '../services/codegen.js';
-import { createVercelProject } from '../services/vercel.js';
+import { createVercelProject, createVercelDeployment, getVercelDeployment } from '../services/vercel.js';
 import { broadcastDrop } from '../services/broadcast.js';
 import { buildEvidence } from '../services/research.js';
 import { generateDecision } from '../services/llm.js';
@@ -815,10 +815,12 @@ export async function runDailyCycle(
 
     const uniqueSuffix = Date.now().toString().slice(-6);
     const baseSlug = sanitizeRepoName(dropName);
-    const baseName = baseSlug ? `${baseSlug}-${uniqueSuffix}` : `synth-drop-${uniqueSuffix}`;
-    const repo = await ensureRepo({ name: baseName, description });
+    const uniqueMode = (process.env.SYNTH_REPO_UNIQUE ?? 'true').toLowerCase() === 'true';
+    const baseName = baseSlug || 'synth-drop';
+    const repoName = uniqueMode ? `${baseName}-${uniqueSuffix}` : baseName;
+    const repo = await ensureRepo({ name: repoName, description });
     const token = process.env.GITHUB_TOKEN ?? '';
-    const repoOwner = process.env.GITHUB_ORG ?? parseRepoOwner(repo.htmlUrl);
+    const repoOwner = parseRepoOwner(repo.htmlUrl) ?? (process.env.GITHUB_ORG ?? '');
 
     let vercelProjectUrl: string | undefined;
 
@@ -842,7 +844,7 @@ export async function runDailyCycle(
           ? ['nft-builder', 'contract-synth']
           : ['contract-synth'];
     const contentSkills = await buildSkillsContext(baseDir, { include: dropSkillNames });
-    const socialSkills = await buildSkillsContext(baseDir, { include: ['social-broadcast', ...dropSkillNames] });
+    const socialSkills = await buildSkillsContext(baseDir, { include: ['social-broadcast', 'launch-voice', ...dropSkillNames] });
 
     const content = await generateDropContent({
       dropType,
@@ -875,7 +877,7 @@ export async function runDailyCycle(
     };
     const effectiveContent = content ?? fallbackContent;
     const repoAbout = effectiveContent.about ?? description;
-    const vercelAppName = sanitizeRepoName(effectiveContent.appName || baseName).slice(0, 36) || baseName;
+    const vercelAppName = repo.name;
 
     if (repoOwner && process.env.VERCEL_TOKEN) {
       const repoSlug = `${repoOwner}/${repo.name}`;
@@ -886,6 +888,7 @@ export async function runDailyCycle(
             repo: repoSlug
           });
           vercelProjectUrl = vercelProject.url;
+          await log(baseDir, 'info', `Vercel project linked: ${vercelProject.url}`);
           break;
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
@@ -965,6 +968,65 @@ export async function runDailyCycle(
     }
 
     await initAndPushRepo(tempDir, repo.cloneUrl, token, effectiveContent.commitMessage);
+
+    if (vercelProjectUrl && repoOwner) {
+      const deployAttemptsRaw = process.env.SYNTH_VERCEL_DEPLOY_RETRIES
+        ? Number(process.env.SYNTH_VERCEL_DEPLOY_RETRIES)
+        : 2;
+      const deployAttempts = Number.isFinite(deployAttemptsRaw) && deployAttemptsRaw > 0 ? deployAttemptsRaw : 2;
+      const pollIntervalRaw = process.env.SYNTH_VERCEL_POLL_INTERVAL_MS
+        ? Number(process.env.SYNTH_VERCEL_POLL_INTERVAL_MS)
+        : 5000;
+      const pollIntervalMs = Number.isFinite(pollIntervalRaw) && pollIntervalRaw > 0 ? pollIntervalRaw : 5000;
+      const pollTimeoutRaw = process.env.SYNTH_VERCEL_POLL_TIMEOUT_MS
+        ? Number(process.env.SYNTH_VERCEL_POLL_TIMEOUT_MS)
+        : 600000;
+      const pollTimeoutMs = Number.isFinite(pollTimeoutRaw) && pollTimeoutRaw > 0 ? pollTimeoutRaw : 600000;
+
+      for (let attempt = 1; attempt <= deployAttempts; attempt += 1) {
+        try {
+          const deployment = await createVercelDeployment({
+            projectName: vercelAppName,
+            repo: repo.name,
+            org: repoOwner,
+            ref: 'main',
+            target: 'production'
+          });
+          await log(baseDir, 'info', `Vercel deployment started: ${deployment.id}`);
+
+          const startedAt = Date.now();
+          let state = deployment.readyState || deployment.status || '';
+          let finalUrl = deployment.url;
+          while (Date.now() - startedAt < pollTimeoutMs) {
+            await sleep(pollIntervalMs);
+            const latest = await getVercelDeployment(deployment.id);
+            state = latest.readyState || latest.status || state;
+            finalUrl = latest.url || finalUrl;
+            if (state === 'ERROR' && latest.errorMessage) {
+              await log(baseDir, 'warn', `Vercel deployment error: ${latest.errorMessage}`);
+            }
+            if (state && ['READY', 'ERROR', 'CANCELED'].includes(state)) {
+              break;
+            }
+          }
+
+          if (state === 'READY') {
+            if (finalUrl) {
+              vercelProjectUrl = finalUrl;
+            }
+            await log(baseDir, 'info', `Vercel deployment ready: ${finalUrl ?? vercelProjectUrl ?? 'unknown url'}`);
+            break;
+          }
+
+          await log(baseDir, 'warn', `Vercel deployment attempt ${attempt} ended with state "${state}".`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          await log(baseDir, 'warn', `Vercel deployment attempt ${attempt} failed: ${message}`);
+        }
+      }
+    } else if (vercelProjectUrl && !repoOwner) {
+      await log(baseDir, 'warn', 'Skipping Vercel deployment trigger: missing repo owner.');
+    }
 
     if (repoOwner && repoAbout) {
       await updateRepoDescription({
