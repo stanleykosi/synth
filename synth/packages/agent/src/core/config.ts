@@ -40,10 +40,6 @@ export interface AgentConfig {
     channels: string[];
     limit: number;
   };
-  discord: {
-    channelIds: string[];
-    limit: number;
-  };
   dune: {
     queryIds: number[];
   };
@@ -100,9 +96,9 @@ const fallbackConfig: AgentConfig = {
   },
   research: {
     enabled: true,
-    maxSignals: 3,
-    resultsPerSignal: 5,
-    fetchTop: 1
+    maxSignals: 4,
+    resultsPerSignal: 6,
+    fetchTop: 2
   },
   decision: {
     enabled: true,
@@ -118,26 +114,21 @@ const fallbackConfig: AgentConfig = {
     channels: ['base'],
     limit: 20
   },
-  discord: {
-    channelIds: [],
-    limit: 20
-  },
   dune: {
     queryIds: [5737569, 6436472, 6314894, 3798745]
   },
   scoring: {
     weights: {
-      twitter: 1.0,
-      web: 1.0,
-      farcaster: 1.0,
-      discord: 0.7,
-      onchain: 1.2,
-      suggestion: 1.3
+      twitter: 0.6,
+      web: 1.4,
+      farcaster: 1.1,
+      onchain: 1.4,
+      suggestion: 1.2
     },
     engagementCap: 5000,
     suggestionStakeMultiplier: 200000,
     stakePriorityEth: 0.1,
-    recencyBoost: 1.2,
+    recencyBoost: 1.6,
     recencyWindowHours: 24
   },
   pipeline: {
@@ -157,7 +148,6 @@ function mergeConfig(base: AgentConfig, overrides: Partial<AgentConfig>): AgentC
     decision: { ...base.decision, ...overrides.decision },
     validation: { ...base.validation, ...overrides.validation },
     farcaster: { ...base.farcaster, ...overrides.farcaster },
-    discord: { ...base.discord, ...overrides.discord },
     dune: { ...base.dune, ...overrides.dune },
     scoring: { ...base.scoring, ...overrides.scoring },
     pipeline: { ...base.pipeline, ...overrides.pipeline }

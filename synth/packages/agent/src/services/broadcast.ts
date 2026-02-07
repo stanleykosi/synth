@@ -1,5 +1,4 @@
 import { TwitterApi } from 'twitter-api-v2';
-import { Client, GatewayIntentBits } from 'discord.js';
 import type { DropRecord, TrendSignal } from '../core/types.js';
 import { log } from '../core/logger.js';
 import { generateSocialCopy } from './social.js';
@@ -13,11 +12,14 @@ interface BroadcastInput {
 }
 
 function buildThread(drop: DropRecord, trend: TrendSignal): string[] {
-  const explorer = drop.explorerUrl ?? `https://basescan.org/address/${drop.contractAddress}`;
+  const explorer = drop.explorerUrl ?? (drop.contractAddress ? `https://basescan.org/address/${drop.contractAddress}` : '');
+  const contractLine = drop.contractAddress
+    ? `Contract: ${drop.contractAddress}\nExplorer: ${explorer || 'N/A'}`
+    : 'Contract: none (offchain app)';
   return [
     `SYNTH drop: ${drop.name}\n\nSignal: ${trend.summary}`,
     `What shipped: ${drop.description}`,
-    `Contract: ${drop.contractAddress}\nExplorer: ${explorer}`,
+    contractLine,
     `Repo: ${drop.githubUrl}`,
     drop.webappUrl ? `Web: ${drop.webappUrl}` : 'Web: not applicable',
     'Share feedback or submit a new suggestion in the SYNTH dashboard.'
@@ -38,8 +40,7 @@ export async function broadcastDrop(input: BroadcastInput) {
 
   await Promise.all([
     postTwitterThread(input.baseDir, thread),
-    postFarcaster(input.baseDir, farcaster),
-    postDiscord(input.baseDir, input.drop, thread[0])
+    postFarcaster(input.baseDir, farcaster)
   ]);
 }
 
@@ -100,30 +101,4 @@ async function postFarcaster(baseDir: string, text: string) {
   }
 
   await log(baseDir, 'info', 'Farcaster cast published.');
-}
-
-async function postDiscord(baseDir: string, drop: DropRecord, text: string) {
-  const token = process.env.DISCORD_BOT_TOKEN;
-  const channelId = process.env.DISCORD_LAUNCH_CHANNEL_ID;
-
-  if (!token || !channelId) {
-    await log(baseDir, 'warn', 'Discord credentials missing, skipping broadcast.');
-    return;
-  }
-
-  const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
-  });
-
-  await client.login(token);
-  const channel = await client.channels.fetch(channelId).catch(() => null);
-
-  if (channel && channel.isTextBased()) {
-    await channel.send({
-      content: `${text}\nRepo: ${drop.githubUrl}\nContract: ${drop.contractAddress}`
-    });
-  }
-
-  await client.destroy();
-  await log(baseDir, 'info', 'Discord announcement published.');
 }

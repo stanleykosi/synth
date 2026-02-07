@@ -16,6 +16,7 @@ interface DropItem {
   name: string;
   type: string;
   contractAddress: string;
+  appMode?: 'onchain' | 'offchain';
   deployedAt: string;
 }
 
@@ -59,7 +60,9 @@ export function MemoryPanel() {
             <div key={drop.id} className={styles.item}>
               <span className={styles.meta}>{drop.type}</span>
               <p>{drop.name}</p>
-              <span className={styles.address}>{drop.contractAddress}</span>
+              <span className={styles.address}>
+                {drop.contractAddress ? drop.contractAddress : (drop.appMode === 'offchain' ? 'Offchain app' : 'No contract')}
+              </span>
             </div>
           ))
         )}

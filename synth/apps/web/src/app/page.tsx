@@ -85,12 +85,12 @@ export default async function HomePage() {
             <div className={styles.step}>
               <div className={styles.stepNumber}>01</div>
               <h3>Signal Detection</h3>
-              <p>SYNTH monitors Twitter, Farcaster, Discord, and onchain data for emerging trends.</p>
+              <p>SYNTH monitors web/news, Farcaster, onchain Dune queries, and community suggestions for emerging trends.</p>
             </div>
             <div className={styles.step}>
               <div className={styles.stepNumber}>02</div>
               <h3>Synthesis</h3>
-              <p>The AI designs and builds the appropriate solution—token, NFT, or dApp.</p>
+              <p>The AI decides the best output—token, NFT, or a standalone app/dapp—and generates production-ready code.</p>
             </div>
             <div className={styles.step}>
               <div className={styles.stepNumber}>03</div>

@@ -25,6 +25,9 @@ export interface RepoTemplateInput {
   about?: string;
   repoUrl?: string;
   webappUrl?: string;
+  contractType?: string;
+  appMode?: string;
+  hasContract?: boolean;
 }
 
 export interface GeneratedFile {
@@ -46,13 +49,40 @@ const tokenMap: Record<string, (input: RepoTemplateInput) => string> = {
   '__WEBAPP_URL__': (input) => input.webappUrl ?? '',
   '__SYMBOL__': (input) => input.symbol,
   '__DROP_TYPE__': (input) => input.dropType,
+  '__CONTRACT_TYPE__': (input) => input.contractType ?? (input.dropType === 'token' ? 'erc20' : input.dropType === 'nft' ? 'erc721' : input.dropType === 'contract' ? 'erc1155' : 'none'),
+  '__APP_MODE__': (input) => input.appMode ?? (input.dropType === 'dapp' ? 'offchain' : 'onchain'),
+  '__HAS_CONTRACT__': (input) => {
+    if (typeof input.hasContract === 'boolean') return String(input.hasContract);
+    if (input.contractType) return String(input.contractType !== 'none');
+    return String(input.dropType !== 'dapp');
+  },
   '__RATIONALE__': (input) => input.rationale,
   '__CONTRACT_ADDRESS__': (input) => input.contractAddress,
   '__CHAIN__': (input) => input.chain,
   '__NETWORK__': (input) => input.network,
   '__EXPLORER_URL__': (input) => input.explorerUrl,
   '__RPC_URL__': (input) => input.rpcUrl,
-  '__CHAIN_ID__': (input) => input.chainId
+  '__CHAIN_ID__': (input) => input.chainId,
+  '__CONTRACT_SECTION__': (input) => {
+    const hasContract = typeof input.hasContract === 'boolean'
+      ? input.hasContract
+      : input.contractType
+        ? input.contractType !== 'none'
+        : input.dropType !== 'dapp';
+    if (!hasContract || !input.contractAddress) {
+      return 'This drop ships as an offchain web app. No onchain contract was deployed.';
+    }
+    const explorer = input.explorerUrl || 'N/A';
+    return [
+      `- Network: ${input.network}`,
+      `- Chain: ${input.chain}`,
+      `- Contract type: ${input.contractType ?? 'erc20'}`,
+      `- Address: ${input.contractAddress}`,
+      `- Explorer: ${explorer}`,
+      `- Symbol: ${input.symbol}`,
+      `- Drop type: ${input.dropType}`
+    ].join('\n');
+  }
 };
 
 function escapeJson(value: string): string {

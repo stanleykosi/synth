@@ -9,7 +9,9 @@ interface DropPayload {
   name: string;
   description: string;
   type: 'token' | 'nft' | 'dapp' | 'contract';
-  contractAddress: string;
+  contractAddress?: string;
+  contractType?: 'erc20' | 'erc721' | 'erc1155' | 'none';
+  appMode?: 'onchain' | 'offchain';
   githubUrl: string;
   webappUrl?: string;
   deployedAt: string;
@@ -25,10 +27,12 @@ function isValidDrop(payload: unknown): payload is DropPayload {
     typeof drop.name === 'string' && drop.name.length > 0 &&
     typeof drop.description === 'string' && drop.description.length > 0 &&
     validTypes.includes(drop.type) &&
-    typeof drop.contractAddress === 'string' && drop.contractAddress.length > 0 &&
     typeof drop.githubUrl === 'string' && drop.githubUrl.length > 0 &&
     typeof drop.deployedAt === 'string' && drop.deployedAt.length > 0 &&
     typeof drop.trend === 'string' && drop.trend.length > 0 &&
+    (drop.contractAddress === undefined || typeof drop.contractAddress === 'string') &&
+    (drop.contractType === undefined || typeof drop.contractType === 'string') &&
+    (drop.appMode === undefined || typeof drop.appMode === 'string') &&
     (drop.webappUrl === undefined || typeof drop.webappUrl === 'string')
   );
 }

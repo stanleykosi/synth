@@ -128,7 +128,7 @@ export function startServer(baseDir: string, config: AgentConfig) {
     }
 
     const payload = req.body as Partial<DropRecord>;
-    if (!payload.name || !payload.description || !payload.type || !payload.contractAddress || !payload.githubUrl) {
+    if (!payload.name || !payload.description || !payload.type || !payload.githubUrl) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -138,7 +138,9 @@ export function startServer(baseDir: string, config: AgentConfig) {
       name: payload.name,
       description: payload.description,
       type: payload.type,
-      contractAddress: payload.contractAddress,
+      contractAddress: payload.contractAddress ?? '',
+      contractType: payload.contractType,
+      appMode: payload.appMode,
       githubUrl: payload.githubUrl,
       webappUrl: payload.webappUrl,
       explorerUrl: payload.explorerUrl,
@@ -301,6 +303,12 @@ export function startServer(baseDir: string, config: AgentConfig) {
     if (action === 'clear-drops') {
       await saveDrops(baseDir, []);
       await log(baseDir, 'info', 'Drops cleared via admin.');
+      return res.json({ ok: true });
+    }
+
+    if (action === 'clear-chat') {
+      await saveChat(baseDir, []);
+      await log(baseDir, 'info', 'Chat history cleared via admin.');
       return res.json({ ok: true });
     }
 

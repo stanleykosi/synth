@@ -10,6 +10,9 @@ const NETWORK = '__NETWORK__';
 const DROP_TYPE = '__DROP_TYPE__';
 const RPC_URL = '__RPC_URL__';
 const CHAIN_ID = Number('__CHAIN_ID__');
+const HAS_CONTRACT = '__HAS_CONTRACT__' === 'true';
+const APP_MODE = '__APP_MODE__';
+const WEBAPP_URL = '__WEBAPP_URL__';
 
 const chain = CHAIN_ID === base.id ? base : baseSepolia;
 const client = createPublicClient({
@@ -113,6 +116,7 @@ export default function Home() {
   };
 
   const handleCopy = async () => {
+    if (!HAS_CONTRACT) return;
     try {
       await navigator.clipboard.writeText(CONTRACT_ADDRESS);
       setCopied(true);
@@ -193,6 +197,11 @@ export default function Home() {
   const loadOnchain = async () => {
     setLoading(true);
     setError('');
+    if (!HAS_CONTRACT || APP_MODE === 'offchain') {
+      setOnchain(null);
+      setLoading(false);
+      return;
+    }
     const data: OnchainData = {};
     data.owner = await readSafe(() => client.readContract({
       address: CONTRACT_ADDRESS,
@@ -251,12 +260,20 @@ export default function Home() {
         <p className="tagline">__TAGLINE__</p>
         <p className="hero-copy">__HERO__</p>
         <div className="cta-row">
-          <a className="btn primary" href={EXPLORER_URL} target="_blank" rel="noreferrer">
-            View on Basescan
-          </a>
-          <button className="btn ghost" onClick={handleCopy} type="button">
-            {copied ? 'Copied' : 'Copy Address'}
-          </button>
+          {HAS_CONTRACT && EXPLORER_URL ? (
+            <a className="btn primary" href={EXPLORER_URL} target="_blank" rel="noreferrer">
+              View on Basescan
+            </a>
+          ) : (
+            <a className="btn primary" href={WEBAPP_URL || '__REPO_URL__'} target="_blank" rel="noreferrer">
+              View Live App
+            </a>
+          )}
+          {HAS_CONTRACT && (
+            <button className="btn ghost" onClick={handleCopy} type="button">
+              {copied ? 'Copied' : 'Copy Address'}
+            </button>
+          )}
         </div>
       </header>
 
@@ -267,8 +284,8 @@ export default function Home() {
           <a className="btn ghost" href="__REPO_URL__" target="_blank" rel="noreferrer">
             View Repo
           </a>
-          {('__WEBAPP_URL__' && '__WEBAPP_URL__'.length > 0) ? (
-            <a className="btn ghost" href="__WEBAPP_URL__" target="_blank" rel="noreferrer">
+          {(WEBAPP_URL && WEBAPP_URL.length > 0) ? (
+            <a className="btn ghost" href={WEBAPP_URL} target="_blank" rel="noreferrer">
               Live App
             </a>
           ) : null}
@@ -280,8 +297,13 @@ export default function Home() {
           <h2>Contract Snapshot</h2>
           <p>Network: <strong>{NETWORK}</strong></p>
           <p>Chain: <strong>__CHAIN__</strong></p>
+          <p>App mode: <strong>{APP_MODE}</strong></p>
           <p>Symbol: <strong>__SYMBOL__</strong></p>
-          <p className="mono">{CONTRACT_ADDRESS}</p>
+          {HAS_CONTRACT ? (
+            <p className="mono">{CONTRACT_ADDRESS}</p>
+          ) : (
+            <p className="muted">No onchain contract for this drop.</p>
+          )}
         </div>
         <div className="card">
           <h2>Core Features</h2>
@@ -289,122 +311,126 @@ export default function Home() {
             __FEATURES_HTML__
           </ul>
         </div>
-        <div className="card">
-          <div className="card-row">
-            <h2>Onchain Read</h2>
-            <button className="btn ghost" onClick={loadOnchain} type="button" disabled={loading}>
-              {loading ? 'Loading...' : 'Refresh'}
-            </button>
-          </div>
-          {error && <p className="error">{error}</p>}
-          <div className="stat-grid">
-            {onchain?.owner && (
-              <div className="stat">
-                <span>Owner</span>
-                <strong className="mono">{onchain.owner}</strong>
+        {HAS_CONTRACT && APP_MODE !== 'offchain' && (
+          <>
+            <div className="card">
+              <div className="card-row">
+                <h2>Onchain Read</h2>
+                <button className="btn ghost" onClick={loadOnchain} type="button" disabled={loading}>
+                  {loading ? 'Loading...' : 'Refresh'}
+                </button>
               </div>
-            )}
-            {onchain?.name && (
-              <div className="stat">
-                <span>Name</span>
-                <strong>{onchain.name}</strong>
+              {error && <p className="error">{error}</p>}
+              <div className="stat-grid">
+                {onchain?.owner && (
+                  <div className="stat">
+                    <span>Owner</span>
+                    <strong className="mono">{onchain.owner}</strong>
+                  </div>
+                )}
+                {onchain?.name && (
+                  <div className="stat">
+                    <span>Name</span>
+                    <strong>{onchain.name}</strong>
+                  </div>
+                )}
+                {onchain?.symbol && (
+                  <div className="stat">
+                    <span>Symbol</span>
+                    <strong>{onchain.symbol}</strong>
+                  </div>
+                )}
+                {onchain?.totalSupply && (
+                  <div className="stat">
+                    <span>Total supply</span>
+                    <strong>{onchain.totalSupply}</strong>
+                  </div>
+                )}
+                {onchain?.nextTokenId && (
+                  <div className="stat">
+                    <span>Next token id</span>
+                    <strong>{onchain.nextTokenId}</strong>
+                  </div>
+                )}
+                {onchain?.uri && (
+                  <div className="stat">
+                    <span>Token URI (id 0)</span>
+                    <strong className="mono">{onchain.uri}</strong>
+                  </div>
+                )}
               </div>
-            )}
-            {onchain?.symbol && (
-              <div className="stat">
-                <span>Symbol</span>
-                <strong>{onchain.symbol}</strong>
+            </div>
+            <div className="card">
+              <div className="card-row">
+                <h2>Wallet</h2>
+                <button className="btn ghost" onClick={connectWallet} type="button">
+                  {walletAddress ? 'Connected' : 'Connect'}
+                </button>
               </div>
-            )}
-            {onchain?.totalSupply && (
-              <div className="stat">
-                <span>Total supply</span>
-                <strong>{onchain.totalSupply}</strong>
-              </div>
-            )}
-            {onchain?.nextTokenId && (
-              <div className="stat">
-                <span>Next token id</span>
-                <strong>{onchain.nextTokenId}</strong>
-              </div>
-            )}
-            {onchain?.uri && (
-              <div className="stat">
-                <span>Token URI (id 0)</span>
-                <strong className="mono">{onchain.uri}</strong>
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="card">
-          <div className="card-row">
-            <h2>Wallet</h2>
-            <button className="btn ghost" onClick={connectWallet} type="button">
-              {walletAddress ? 'Connected' : 'Connect'}
-            </button>
-          </div>
-          {walletAddress ? (
-            <p className="mono">Connected: {walletAddress}</p>
-          ) : (
-            <p className="muted">Connect a wallet to unlock write actions.</p>
-          )}
-          {walletError && <p className="error">{walletError}</p>}
-          {(DROP_TYPE === 'nft' || DROP_TYPE === 'contract') && (
-            <div className="mint-panel">
-              <h3>Owner Mint</h3>
-              {!isOwner && <p className="muted">Only the contract owner can mint.</p>}
-              <label className="field">
-                <span>Recipient</span>
-                <input
-                  className="input"
-                  value={mintTo}
-                  onChange={(event) => setMintTo(event.target.value)}
-                  placeholder="0x..."
-                />
-              </label>
-              {DROP_TYPE === 'nft' && (
-                <label className="field">
-                  <span>Token URI</span>
-                  <input
-                    className="input"
-                    value={tokenUri}
-                    onChange={(event) => setTokenUri(event.target.value)}
-                    placeholder="ipfs://..."
-                  />
-                </label>
+              {walletAddress ? (
+                <p className="mono">Connected: {walletAddress}</p>
+              ) : (
+                <p className="muted">Connect a wallet to unlock write actions.</p>
               )}
-              {DROP_TYPE === 'contract' && (
-                <div className="mint-row">
+              {walletError && <p className="error">{walletError}</p>}
+              {(DROP_TYPE === 'nft' || DROP_TYPE === 'contract') && (
+                <div className="mint-panel">
+                  <h3>Owner Mint</h3>
+                  {!isOwner && <p className="muted">Only the contract owner can mint.</p>}
                   <label className="field">
-                    <span>Token ID</span>
+                    <span>Recipient</span>
                     <input
                       className="input"
-                      value={tokenId}
-                      onChange={(event) => setTokenId(event.target.value)}
+                      value={mintTo}
+                      onChange={(event) => setMintTo(event.target.value)}
+                      placeholder="0x..."
                     />
                   </label>
-                  <label className="field">
-                    <span>Amount</span>
-                    <input
-                      className="input"
-                      value={tokenAmount}
-                      onChange={(event) => setTokenAmount(event.target.value)}
-                    />
-                  </label>
+                  {DROP_TYPE === 'nft' && (
+                    <label className="field">
+                      <span>Token URI</span>
+                      <input
+                        className="input"
+                        value={tokenUri}
+                        onChange={(event) => setTokenUri(event.target.value)}
+                        placeholder="ipfs://..."
+                      />
+                    </label>
+                  )}
+                  {DROP_TYPE === 'contract' && (
+                    <div className="mint-row">
+                      <label className="field">
+                        <span>Token ID</span>
+                        <input
+                          className="input"
+                          value={tokenId}
+                          onChange={(event) => setTokenId(event.target.value)}
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Amount</span>
+                        <input
+                          className="input"
+                          value={tokenAmount}
+                          onChange={(event) => setTokenAmount(event.target.value)}
+                        />
+                      </label>
+                    </div>
+                  )}
+                  <button
+                    className="btn primary"
+                    onClick={handleMint}
+                    disabled={!walletAddress || !isOwner || minting}
+                    type="button"
+                  >
+                    {minting ? 'Minting...' : 'Mint'}
+                  </button>
+                  {mintStatus && <p className="muted">{mintStatus}</p>}
                 </div>
               )}
-              <button
-                className="btn primary"
-                onClick={handleMint}
-                disabled={!walletAddress || !isOwner || minting}
-                type="button"
-              >
-                {minting ? 'Minting...' : 'Mint'}
-              </button>
-              {mintStatus && <p className="muted">{mintStatus}</p>}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </section>
 
       <section className="story">

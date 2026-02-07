@@ -56,9 +56,9 @@
   },
   "research": {
     "enabled": true,
-    "maxSignals": 3,
-    "resultsPerSignal": 5,
-    "fetchTop": 1
+    "maxSignals": 4,
+    "resultsPerSignal": 6,
+    "fetchTop": 2
   },
   "decision": {
     "enabled": true,
@@ -74,26 +74,21 @@
     "channels": ["base"],
     "limit": 25
   },
-  "discord": {
-    "channelIds": [],
-    "limit": 25
-  },
   "dune": {
     "queryIds": [5737569, 6436472, 6314894, 3798745]
   },
   "scoring": {
     "weights": {
-      "twitter": 0.0,
-      "web": 1.8,
-      "farcaster": 1.0,
-      "discord": 0.7,
-      "onchain": 1.1,
-      "suggestion": 1.3
+      "twitter": 0.6,
+      "web": 1.4,
+      "farcaster": 1.1,
+      "onchain": 1.4,
+      "suggestion": 1.2
     },
     "engagementCap": 5000,
     "suggestionStakeMultiplier": 200000,
     "stakePriorityEth": 0.1,
-    "recencyBoost": 1.2,
+    "recencyBoost": 1.6,
     "recencyWindowHours": 24
   },
   "pipeline": {

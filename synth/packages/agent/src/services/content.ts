@@ -3,6 +3,8 @@ import { runLlmTask } from './llm-runner.js';
 
 export interface DropContentInput {
   dropType: DropType;
+  contractType?: string;
+  appMode?: string;
   dropName: string;
   symbol: string;
   tagline: string;
@@ -47,14 +49,16 @@ export async function generateDropContent(input: DropContentInput): Promise<Drop
   const maxTokens = process.env.SYNTH_LLM_MAX_TOKENS ? Number(process.env.SYNTH_LLM_MAX_TOKENS) : 1200;
 
   const prompt = [
-    'You are SYNTH, an autonomous onchain product builder.',
+    'You are SYNTH, an autonomous product builder.',
     'Generate professional launch copy for a GitHub repo.',
     'Return JSON only and follow the schema.',
     'README must be clear, concise, and ready for public release.',
     'Include sections: Overview, Why it exists, What shipped, Contract, Local development, Deploy, Links, License.',
-    'If dropType is dapp, include a short "How it works" section describing the UI and onchain read/mint controls.',
+    'If dropType is dapp, include a short "How it works" section describing the UI.',
+    'If appMode is onchain, mention wallet connect and onchain reads. If offchain, mention data sources and web search evidence instead.',
     'If dropType is token, include Token summary + how to verify supply.',
     'If dropType is nft/contract, include Mint mechanics and metadata guidance.',
+    'If contractAddress is empty, clearly state this is an offchain build and omit contract verification steps.',
     'Use the provided drop details and links. Do not invent addresses or metrics.',
     'About should be a short GitHub repo summary (<= 200 chars).',
     'Commit message should be <= 72 chars and professional.',
@@ -67,6 +71,8 @@ export async function generateDropContent(input: DropContentInput): Promise<Drop
     prompt,
     input: {
       dropType: input.dropType,
+      contractType: input.contractType ?? '',
+      appMode: input.appMode ?? '',
       name: input.dropName,
       symbol: input.symbol,
       tagline: input.tagline,

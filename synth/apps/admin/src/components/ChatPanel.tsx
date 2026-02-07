@@ -43,6 +43,20 @@ export function ChatPanel() {
     setSending(false);
   };
 
+  const handleClear = async () => {
+    setError(null);
+    const res = await fetch('/api/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'clear-chat' })
+    });
+    if (!res.ok) {
+      setError('Failed to clear chat');
+      return;
+    }
+    setHistory([]);
+  };
+
   return (
     <div className={styles.panel}>
       <div className={styles.history}>
@@ -65,9 +79,14 @@ export function ChatPanel() {
           value={message}
           onChange={(event) => setMessage(event.target.value)}
         />
-        <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
-          {sending ? 'Sending...' : 'Send'}
-        </button>
+        <div className={styles.actions}>
+          <button className="btn btn-secondary" onClick={handleClear} disabled={sending}>
+            Clear Chat
+          </button>
+          <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
+            {sending ? 'Sending...' : 'Send'}
+          </button>
+        </div>
       </div>
       {error && <div className={styles.error}>{error}</div>}
     </div>

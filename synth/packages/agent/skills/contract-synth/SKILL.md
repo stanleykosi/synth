@@ -9,7 +9,7 @@ description: Generate secure contracts, tests, and deployment scripts.
 Design **secure smart contracts** and deployment scripts for each drop.
 
 ## Procedure
-1. Select the appropriate contract type (ERC20, ERC721, ERC1155, or custom).
+1. Select the appropriate contract type (ERC20, ERC721, ERC1155, or custom) only if the drop is onchain.
 2. Write minimal, secure contracts with NatSpec for public functions.
 3. Provide Foundry deploy scripts in `contracts/script/`.
 4. Keep contracts compatible with OpenZeppelin v5 and Solidity ^0.8.24.

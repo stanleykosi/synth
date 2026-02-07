@@ -18,12 +18,7 @@ __FEATURES__
 
 ## Contract
 
-- Network: __NETWORK__
-- Chain: __CHAIN__
-- Address: __CONTRACT_ADDRESS__
-- Explorer: __EXPLORER_URL__
-- Symbol: __SYMBOL__
-- Drop type: __DROP_TYPE__
+__CONTRACT_SECTION__
 
 ## Local development
 

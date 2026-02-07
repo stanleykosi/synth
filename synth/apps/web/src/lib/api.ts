@@ -4,6 +4,8 @@ export interface Drop {
   description: string;
   type: 'token' | 'nft' | 'dapp' | 'contract';
   contractAddress: string;
+  contractType?: 'erc20' | 'erc721' | 'erc1155' | 'none';
+  appMode?: 'onchain' | 'offchain';
   githubUrl: string;
   webappUrl?: string;
   explorerUrl?: string;

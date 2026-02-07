@@ -4,6 +4,8 @@ import type { GeneratedFile } from './repo.js';
 
 interface CodegenInput {
   dropType: DropType;
+  contractType?: string;
+  appMode?: string;
   dropName: string;
   symbol: string;
   description: string;
@@ -71,7 +73,9 @@ export async function generateRepoFiles(input: CodegenInput): Promise<GeneratedF
     'You must generate novel code (no placeholders like __DROP_NAME__).',
     'Allowed files only: src/**, public/**, contracts/src/**, contracts/script/**, contracts/README.md.',
     'Use Next.js 16 App Router and vanilla CSS. No Tailwind.',
-    'The webapp must be a dapp with onchain read panels. If dropType is nft or contract, include an owner mint UI.',
+    'If appMode is "onchain", include onchain read panels. If appMode is "offchain", build a standalone webapp without wallet requirements.',
+    'If contractType is "none", do not generate any contract files and omit all onchain UI.',
+    'If dropType is nft or contract and appMode is onchain, include an owner mint UI.',
     'Contracts must be Solidity ^0.8.24 and use OpenZeppelin v5 imports.',
     'Keep code concise and compile-ready.',
     'Do not include package.json or next.config.js.',
@@ -83,6 +87,8 @@ export async function generateRepoFiles(input: CodegenInput): Promise<GeneratedF
     prompt,
     input: {
       dropType: input.dropType,
+      contractType: input.contractType ?? '',
+      appMode: input.appMode ?? '',
       dropName: input.dropName,
       symbol: input.symbol,
       description: input.description,

@@ -6,7 +6,7 @@ description: Produce NFT launch content, mint details, and documentation.
 # NFT Builder Skill
 
 ## Goal
-Generate **NFT contract code + launch docs** for a SYNTH drop repo.
+Generate **novel NFT contract code + launch docs** for a SYNTH drop repo.
 
 ## Required Files
 - `contracts/src/<CollectionName>.sol` (ERC721 or ERC1155)

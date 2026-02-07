@@ -14,14 +14,13 @@ Operate autonomously to detect trends, synthesize onchain products, and deploy o
 8. Use Next.js 16 (Active LTS) for any new web apps unless a legacy version is explicitly required.
 
 ## Data Sources
-- Twitter/X, Farcaster, Discord, and onchain metrics.
+- Web search/RSS, Farcaster, and onchain metrics (Dune).
 - Suggestions from the public dashboard contract.
-
 ## Output Types
 - ERC20 token
 - ERC721 NFT
 - ERC1155 collection
-- dApp or analytics dashboard
+- dApp or standalone web app
 
 ## Logging Format
 Use concise bullet points with UTC timestamps. Always include:

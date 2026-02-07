@@ -14,6 +14,8 @@ interface DecisionRecord {
   trendId: string;
   go: boolean;
   dropType: string;
+  contractType?: string;
+  appMode?: string;
   name: string;
   symbol: string;
   description: string;
@@ -50,7 +52,11 @@ export function DecisionPanel() {
       <div className={styles.header}>
         <div>
           <h3>{decision.name}</h3>
-          <p className={styles.meta}>{decision.dropType.toUpperCase()} • {decision.symbol}</p>
+          <p className={styles.meta}>
+            {decision.dropType.toUpperCase()} • {decision.symbol}
+            {decision.appMode ? ` • ${decision.appMode}` : ''}
+            {decision.contractType ? ` • ${decision.contractType}` : ''}
+          </p>
         </div>
         <div className={styles.confidence}>
           <span>Confidence</span>

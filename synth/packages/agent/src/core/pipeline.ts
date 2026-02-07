@@ -4,11 +4,10 @@ import { loadConfig } from './config.js';
 import { finalizeScores } from './scoring.js';
 import { loadDrops, loadState, saveDrops, saveState, appendMarkdown, memoryPaths, saveTrends, loadDecisions, saveDecisions } from './memory.js';
 import { log } from './logger.js';
-import type { DropRecord, TrendSignal, DropType } from './types.js';
+import type { DropRecord, TrendSignal, DropType, ContractType, AppMode } from './types.js';
 import { fetchTwitterSignals } from '../sources/twitter.js';
 import { fetchWebSignals } from '../sources/web.js';
 import { fetchFarcasterSignals } from '../sources/farcaster.js';
-import { fetchDiscordSignals } from '../sources/discord.js';
 import { fetchOnchainSignals } from '../sources/onchain.js';
 import { fetchSuggestionSignals } from '../sources/suggestions.js';
 import { fetchGraphSignals } from '../sources/graph.js';
@@ -57,9 +56,29 @@ function pickDropType(signal: TrendSignal): DropType {
     return 'dapp';
   }
   if (text.includes('nft') || text.includes('mint')) return 'nft';
-  if (text.includes('token') || text.includes('meme')) return 'token';
+  if (
+    text.includes('token launch') ||
+    text.includes('new token') ||
+    text.includes('airdrop') ||
+    text.includes('memecoin') ||
+    text.includes('meme token')
+  ) {
+    return 'token';
+  }
   if (text.includes('dapp') || text.includes('app')) return 'dapp';
   return 'contract';
+}
+
+function deriveContractType(dropType: DropType): ContractType {
+  if (dropType === 'token') return 'erc20';
+  if (dropType === 'nft') return 'erc721';
+  if (dropType === 'contract') return 'erc1155';
+  return 'none';
+}
+
+function deriveAppMode(dropType: DropType, contractType: ContractType | undefined): AppMode {
+  if (dropType !== 'dapp') return 'onchain';
+  return contractType && contractType !== 'none' ? 'onchain' : 'offchain';
 }
 
 function generateDropName(signal: TrendSignal): string {
@@ -133,19 +152,27 @@ function selectHighestStakeSuggestion(signals: TrendSignal[]): TrendSignal | nul
 function buildStakeOverrideDecision(signal: TrendSignal, reason: string) {
   const summary = cleanSignalSummary(signal.summary);
   const name = generateDropName(signal);
+  const dropType = pickDropType(signal);
+  const contractType = deriveContractType(dropType);
+  const appMode = deriveAppMode(dropType, contractType);
+  const defaultFeatures = appMode === 'offchain'
+    ? ['Signal-driven', 'Open source', 'Shipped by SYNTH']
+    : ['Onchain-native', 'Open source', 'Shipped by SYNTH'];
   return {
     id: `decision-${Date.now()}`,
     createdAt: nowIso(),
     trendId: signal.id,
     go: true,
-    dropType: pickDropType(signal),
+    dropType,
+    contractType,
+    appMode,
     name,
     symbol: generateSymbol(name),
     description: summary.length > 0 ? summary : `Built from signal: ${signal.summary}`,
     tagline: 'From noise to signal.',
     hero: summary.length > 0 ? summary : `Built from signal: ${signal.summary}`,
     cta: 'Explore the drop',
-    features: ['Onchain-native', 'Open source', 'Shipped by SYNTH'],
+    features: defaultFeatures,
     rationale: reason,
     confidence: 0.75,
     evidence: Array.isArray(signal.meta?.evidence) ? signal.meta?.evidence : []
@@ -155,19 +182,27 @@ function buildStakeOverrideDecision(signal: TrendSignal, reason: string) {
 function buildFallbackDecision(signal: TrendSignal, evidence: Record<string, unknown> | undefined) {
   const summary = cleanSignalSummary(signal.summary);
   const name = generateDropName(signal);
+  const dropType = pickDropType(signal);
+  const contractType = deriveContractType(dropType);
+  const appMode = deriveAppMode(dropType, contractType);
+  const defaultFeatures = appMode === 'offchain'
+    ? ['Signal-driven', 'Open source', 'Shipped by SYNTH']
+    : ['Onchain-native', 'Open source', 'Shipped by SYNTH'];
   return {
     id: `decision-${Date.now()}`,
     createdAt: nowIso(),
     trendId: signal.id,
     go: true,
-    dropType: pickDropType(signal),
+    dropType,
+    contractType,
+    appMode,
     name,
     symbol: generateSymbol(name),
     description: summary.length > 0 ? summary : `Built from signal: ${signal.summary}`,
     tagline: 'From noise to signal.',
     hero: summary.length > 0 ? summary : `Built from signal: ${signal.summary}`,
     cta: 'Explore the drop',
-    features: ['Onchain-native', 'Open source', 'Shipped by SYNTH'],
+    features: defaultFeatures,
     rationale: 'Fallback decision generated because no LLM decision was available.',
     confidence: 0.5,
     evidence: Array.isArray(evidence) ? evidence : []
@@ -240,11 +275,10 @@ export async function runDailyCycle(baseDir: string) {
     currentState = { ...currentState, currentPhase: 'signal-detection' };
     await saveState(baseDir, currentState);
 
-    const [twitter, web, farcaster, discord, onchain, graph, suggestions] = await Promise.all([
+    const [twitter, web, farcaster, onchain, graph, suggestions] = await Promise.all([
       fetchTwitterSignals(config),
       fetchWebSignals(config),
       fetchFarcasterSignals(config),
-      fetchDiscordSignals(config),
       fetchOnchainSignals(config),
       fetchGraphSignals(config),
       fetchSuggestionSignals(config)
@@ -254,7 +288,6 @@ export async function runDailyCycle(baseDir: string) {
       ...twitter,
       ...web,
       ...farcaster,
-      ...discord,
       ...onchain,
       ...graph,
       ...suggestions
@@ -398,6 +431,12 @@ export async function runDailyCycle(baseDir: string) {
     const cta = fallbackDecision.cta ?? 'Explore the drop';
     const features = fallbackDecision.features ?? ['Onchain-native', 'Open source', 'Shipped by SYNTH'];
     const symbol = fallbackDecision.symbol ?? generateSymbol(dropName);
+    let contractType = fallbackDecision.contractType ?? deriveContractType(dropType);
+    let appMode = fallbackDecision.appMode ?? deriveAppMode(dropType, contractType);
+    if (dropType !== 'dapp' && contractType === 'none') {
+      contractType = deriveContractType(dropType);
+      appMode = 'onchain';
+    }
 
     const rationaleSnippet = fallbackDecision.rationale ? ` — ${fallbackDecision.rationale.slice(0, 180)}` : '';
     const rationale = fallbackDecision.rationale ?? 'SYNTH selected this drop based on the top scored signal.';
@@ -406,102 +445,112 @@ export async function runDailyCycle(baseDir: string) {
     currentState = { ...currentState, currentPhase: 'development' };
     await saveState(baseDir, currentState);
 
-    const testsPass = await runTests(baseDir);
-    if (!testsPass) {
-      currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'failed' };
-      await saveState(baseDir, currentState);
-      return;
-    }
-
-    const deployerKey = process.env.DEPLOYER_PRIVATE_KEY;
-    const sepoliaRpc = process.env.BASE_SEPOLIA_RPC;
-    if (!deployerKey || !sepoliaRpc) {
-      throw new Error('Missing DEPLOYER_PRIVATE_KEY or BASE_SEPOLIA_RPC');
-    }
-
-    const deployerAddress = process.env.DEPLOYER_ADDRESS;
-    if (!deployerAddress) {
-      throw new Error('Missing DEPLOYER_ADDRESS');
-    }
-
-    const tokenUri = process.env.TOKEN_URI;
-    if (dropType === 'contract' && !tokenUri) {
-      throw new Error('Missing TOKEN_URI for ERC1155 deployment');
-    }
-
-    const env: NodeJS.ProcessEnv = {
-      DEPLOYER_PRIVATE_KEY: deployerKey,
-      TOKEN_NAME: dropName,
-      TOKEN_SYMBOL: symbol,
-      TOKEN_DECIMALS: '18',
-      TOKEN_SUPPLY: '1000000',
-      TOKEN_HOLDER: deployerAddress,
-      TOKEN_URI: tokenUri ?? ''
-    };
-
-    let scriptName = 'script/DeployToken.s.sol:DeployToken';
-    if (dropType === 'nft') {
-      scriptName = 'script/DeployERC721.s.sol:DeployERC721';
-    } else if (dropType === 'contract') {
-      scriptName = 'script/DeployERC1155.s.sol:DeployERC1155';
-    }
-
-    const sepoliaResult = await deployWithForge({
-      baseDir,
-      script: scriptName,
-      rpcUrl: sepoliaRpc,
-      env
-    });
-
-    const sepoliaAddress = parseDeployedAddress(sepoliaResult.output);
-    if (!sepoliaResult.success || !sepoliaAddress) {
-      await log(baseDir, 'error', `Sepolia deployment failed: ${sepoliaResult.output.slice(0, 4000)}`);
-      await saveState(baseDir, { ...state, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'failed' });
-      return;
-    }
-
-    await log(baseDir, 'info', `Sepolia deployment success: ${sepoliaAddress}`);
-    let gasInfo = await readBroadcastGasInfo({
-      contractsDir: path.join(baseDir, '..', 'contracts'),
-      scriptName: scriptName,
-      chainId: '84532'
-    });
-
-    let mainnetAddress = sepoliaAddress;
+    const requiresContract = contractType !== 'none';
+    let mainnetAddress = '';
     let mainnetSucceeded = false;
-    if (config.pipeline.autoDeployMainnet && process.env.BASE_RPC) {
-      const mainnetResult = await deployWithForge({
+    let gasInfo = { txHash: '', gasUsed: '', gasPrice: '', gasCostEth: '' };
+
+    if (requiresContract) {
+      const testsPass = await runTests(baseDir);
+      if (!testsPass) {
+        currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'failed' };
+        await saveState(baseDir, currentState);
+        return;
+      }
+
+      const deployerKey = process.env.DEPLOYER_PRIVATE_KEY;
+      const sepoliaRpc = process.env.BASE_SEPOLIA_RPC;
+      if (!deployerKey || !sepoliaRpc) {
+        throw new Error('Missing DEPLOYER_PRIVATE_KEY or BASE_SEPOLIA_RPC');
+      }
+
+      const deployerAddress = process.env.DEPLOYER_ADDRESS;
+      if (!deployerAddress) {
+        throw new Error('Missing DEPLOYER_ADDRESS');
+      }
+
+      const tokenUri = process.env.TOKEN_URI;
+      if (contractType === 'erc1155' && !tokenUri) {
+        throw new Error('Missing TOKEN_URI for ERC1155 deployment');
+      }
+
+      const env: NodeJS.ProcessEnv = {
+        DEPLOYER_PRIVATE_KEY: deployerKey,
+        TOKEN_NAME: dropName,
+        TOKEN_SYMBOL: symbol,
+        TOKEN_DECIMALS: '18',
+        TOKEN_SUPPLY: '1000000',
+        TOKEN_HOLDER: deployerAddress,
+        TOKEN_URI: tokenUri ?? ''
+      };
+
+      let scriptName = 'script/DeployToken.s.sol:DeployToken';
+      if (contractType === 'erc721') {
+        scriptName = 'script/DeployERC721.s.sol:DeployERC721';
+      } else if (contractType === 'erc1155') {
+        scriptName = 'script/DeployERC1155.s.sol:DeployERC1155';
+      }
+
+      const sepoliaResult = await deployWithForge({
         baseDir,
         script: scriptName,
-        rpcUrl: process.env.BASE_RPC,
+        rpcUrl: sepoliaRpc,
         env
       });
-      const addr = parseDeployedAddress(mainnetResult.output);
-      if (!mainnetResult.success || !addr) {
-        await log(baseDir, 'error', `Mainnet deployment failed: ${mainnetResult.output.slice(0, 4000)}`);
-      } else {
-        mainnetAddress = addr;
-        mainnetSucceeded = true;
-        await log(baseDir, 'info', `Mainnet deployment success: ${mainnetAddress}`);
-        gasInfo = await readBroadcastGasInfo({
-          contractsDir: path.join(baseDir, '..', 'contracts'),
-          scriptName: scriptName,
-          chainId: '8453'
+
+      const sepoliaAddress = parseDeployedAddress(sepoliaResult.output);
+      if (!sepoliaResult.success || !sepoliaAddress) {
+        await log(baseDir, 'error', `Sepolia deployment failed: ${sepoliaResult.output.slice(0, 4000)}`);
+        await saveState(baseDir, { ...state, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'failed' });
+        return;
+      }
+
+      await log(baseDir, 'info', `Sepolia deployment success: ${sepoliaAddress}`);
+      gasInfo = await readBroadcastGasInfo({
+        contractsDir: path.join(baseDir, '..', 'contracts'),
+        scriptName: scriptName,
+        chainId: '84532'
+      });
+
+      mainnetAddress = sepoliaAddress;
+      if (config.pipeline.autoDeployMainnet && process.env.BASE_RPC) {
+        const mainnetResult = await deployWithForge({
+          baseDir,
+          script: scriptName,
+          rpcUrl: process.env.BASE_RPC,
+          env
         });
+        const addr = parseDeployedAddress(mainnetResult.output);
+        if (!mainnetResult.success || !addr) {
+          await log(baseDir, 'error', `Mainnet deployment failed: ${mainnetResult.output.slice(0, 4000)}`);
+        } else {
+          mainnetAddress = addr;
+          mainnetSucceeded = true;
+          await log(baseDir, 'info', `Mainnet deployment success: ${mainnetAddress}`);
+          gasInfo = await readBroadcastGasInfo({
+            contractsDir: path.join(baseDir, '..', 'contracts'),
+            scriptName: scriptName,
+            chainId: '8453'
+          });
+        }
       }
     }
 
-    const baseName = sanitizeRepoName(`${Date.now()}-${dropName}`);
+    const uniqueSuffix = Date.now().toString().slice(-6);
+    const baseSlug = sanitizeRepoName(dropName);
+    const baseName = baseSlug ? `${baseSlug}-${uniqueSuffix}` : `synth-drop-${uniqueSuffix}`;
     const repo = await ensureRepo({ name: baseName, description });
     const token = process.env.GITHUB_TOKEN ?? '';
     const repoOwner = process.env.GITHUB_ORG ?? parseRepoOwner(repo.htmlUrl);
 
     let vercelProjectUrl: string | undefined;
 
-    const isMainnet = mainnetSucceeded;
+    const isMainnet = requiresContract && mainnetSucceeded;
     const explorerUrl = isMainnet
       ? `https://basescan.org/address/${mainnetAddress}`
-      : `https://sepolia.basescan.org/address/${mainnetAddress}`;
+      : requiresContract
+        ? `https://sepolia.basescan.org/address/${mainnetAddress}`
+        : '';
 
     const rpcUrl = isMainnet
       ? (process.env.BASE_RPC ?? 'https://mainnet.base.org')
@@ -509,7 +558,7 @@ export async function runDailyCycle(baseDir: string) {
     const chainId = isMainnet ? '8453' : '84532';
 
     const dropSkillNames = dropType === 'dapp'
-      ? ['web-builder', 'contract-synth']
+      ? (contractType === 'none' || appMode === 'offchain' ? ['web-builder'] : ['web-builder', 'contract-synth'])
       : dropType === 'token'
         ? ['token-builder', 'contract-synth']
         : dropType === 'nft'
@@ -520,6 +569,8 @@ export async function runDailyCycle(baseDir: string) {
 
     const content = await generateDropContent({
       dropType,
+      contractType,
+      appMode,
       dropName,
       symbol,
       tagline,
@@ -532,7 +583,7 @@ export async function runDailyCycle(baseDir: string) {
       network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
       chain: 'Base',
       chainId,
-      contractAddress: mainnetAddress,
+      contractAddress: requiresContract ? mainnetAddress : '',
       explorerUrl,
       repoUrl: repo.htmlUrl,
       webappUrl: '',
@@ -574,6 +625,8 @@ export async function runDailyCycle(baseDir: string) {
     const codegenMode = (process.env.SYNTH_CODEGEN_MODE ?? 'llm').toLowerCase();
     const generatedFiles = codegenMode === 'off' ? null : await generateRepoFiles({
       dropType,
+      contractType,
+      appMode,
       dropName,
       symbol,
       description,
@@ -610,8 +663,11 @@ export async function runDailyCycle(baseDir: string) {
       features,
       symbol,
       dropType,
+      contractType,
+      appMode,
+      hasContract: requiresContract,
       rationale,
-      contractAddress: mainnetAddress,
+      contractAddress: requiresContract ? mainnetAddress : '',
       chain: 'Base',
       network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
       explorerUrl,
@@ -646,20 +702,22 @@ export async function runDailyCycle(baseDir: string) {
       name: dropName,
       description,
       type: dropType,
-      contractAddress: mainnetAddress,
+      contractAddress: requiresContract ? mainnetAddress : '',
+      contractType,
+      appMode,
       githubUrl: repo.htmlUrl,
       webappUrl: vercelProjectUrl,
-      explorerUrl,
+      explorerUrl: explorerUrl || undefined,
       network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
       deployedAt: nowIso(),
       trend: topSignal.summary,
       trendSource: topSignal.source,
       trendScore: topSignal.score,
-      txHash: gasInfo.txHash,
-      gasUsed: gasInfo.gasUsed,
-      gasPrice: gasInfo.gasPrice,
-      gasCostEth: gasInfo.gasCostEth,
-      status: isMainnet ? 'mainnet' : 'testnet'
+      txHash: gasInfo.txHash || undefined,
+      gasUsed: gasInfo.gasUsed || undefined,
+      gasPrice: gasInfo.gasPrice || undefined,
+      gasCostEth: gasInfo.gasCostEth || undefined,
+      status: requiresContract ? (isMainnet ? 'mainnet' : 'testnet') : 'planned'
     };
 
     const drops = await loadDrops(baseDir);
@@ -674,7 +732,10 @@ export async function runDailyCycle(baseDir: string) {
       context: agentContext
     });
 
-    await appendMarkdown(memoryPaths(baseDir).dropsMd, `- ${nowIso()} deployed ${dropRecord.type} ${dropRecord.contractAddress}`);
+    const deployedLine = dropRecord.contractAddress
+      ? `${dropRecord.type} ${dropRecord.contractAddress}`
+      : `${dropRecord.type} (offchain)`;
+    await appendMarkdown(memoryPaths(baseDir).dropsMd, `- ${nowIso()} deployed ${deployedLine}`);
 
     currentState = { ...currentState, currentPhase: 'idle', lastRunAt: nowIso(), lastResult: 'success' };
     await saveState(baseDir, currentState);

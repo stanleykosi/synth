@@ -6,6 +6,8 @@ interface Drop {
   description: string;
   type: 'token' | 'nft' | 'dapp' | 'contract';
   contractAddress: string;
+  contractType?: 'erc20' | 'erc721' | 'erc1155' | 'none';
+  appMode?: 'onchain' | 'offchain';
   githubUrl: string;
   webappUrl?: string;
   explorerUrl?: string;
@@ -26,9 +28,11 @@ export function DropCard({ drop }: { drop: Drop }) {
     contract: '#ffaa00'
   } as const;
 
-  const description = drop.description.length > 180
-    ? `${drop.description.slice(0, 177)}...`
+  const description = drop.description.length > 140
+    ? `${drop.description.slice(0, 137)}...`
     : drop.description;
+  const hasContract = Boolean(drop.contractAddress);
+  const explorerUrl = drop.explorerUrl ?? (hasContract ? `https://basescan.org/address/${drop.contractAddress}` : '');
 
   return (
     <article className={styles.card}>
@@ -49,6 +53,7 @@ export function DropCard({ drop }: { drop: Drop }) {
 
       <div className={styles.meta}>
         {drop.trendSource && <span className={styles.metaItem}>Source: {drop.trendSource}</span>}
+        {drop.appMode && <span className={styles.metaItem}>Mode: {drop.appMode}</span>}
         {drop.network && <span className={styles.metaItem}>{drop.network}</span>}
         {typeof drop.trendScore === 'number' && (
           <span className={styles.metaItem}>Score: {drop.trendScore.toFixed(1)}</span>
@@ -57,15 +62,17 @@ export function DropCard({ drop }: { drop: Drop }) {
       </div>
 
       <div className={styles.links}>
-        <a
-          href={drop.explorerUrl ?? `https://basescan.org/address/${drop.contractAddress}`}
-          target="_blank"
-          className={styles.link}
-          rel="noreferrer"
-        >
-          <span>Contract</span>
-          <span className={styles.arrow}>↗</span>
-        </a>
+        {hasContract && explorerUrl && (
+          <a
+            href={explorerUrl}
+            target="_blank"
+            className={styles.link}
+            rel="noreferrer"
+          >
+            <span>Explorer</span>
+            <span className={styles.arrow}>↗</span>
+          </a>
+        )}
         <a
           href={drop.githubUrl}
           target="_blank"

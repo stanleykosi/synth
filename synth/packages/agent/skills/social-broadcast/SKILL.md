@@ -9,9 +9,9 @@ description: Draft and publish announcements for drops across social channels.
 Announce SYNTH drops across Twitter and Farcaster.
 
 ## Procedure
-1. Draft a 5-tweet thread with: problem, solution, onchain proof, repo link, CTA.
+1. Draft a 4–6 tweet thread with: problem, solution, repo + web link, contract proof (if onchain), CTA.
 2. Cross-post a concise summary to Farcaster.
-3. Include verification links and contract addresses.
+3. If the drop is offchain, omit contract lines and focus on the web app.
 4. Log broadcast timestamps and links to `memory/drops.md`.
 
 ## Constraints

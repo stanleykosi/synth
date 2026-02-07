@@ -49,6 +49,13 @@
   gap: var(--space-sm);
 }
 
+.actions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
 .error,
 .empty {
   color: var(--text-muted);

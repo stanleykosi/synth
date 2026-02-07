@@ -67,14 +67,13 @@ Required only if you want posting:
 - `TWITTER_ACCESS_TOKEN`
 - `TWITTER_ACCESS_SECRET`
 - `NEYNAR_SIGNER_UUID`
-- `DISCORD_BOT_TOKEN`
-- `DISCORD_LAUNCH_CHANNEL_ID`
 
 Optional:
 - `BASESCAN_API_KEY` (only needed for contract verification)
 - `GITHUB_ORG` (only if you want repos created under an org; omit for personal accounts)
 - `VERCEL_TEAM_ID` (only for Vercel Team accounts)
 - `DUNE_API_KEY` (only if you want Dune data)
+- `BRAVE_API_KEY` (recommended for OpenClaw web_search enrichment)
 - `GRAPH_ENDPOINT` and `GRAPH_QUERY` (only if you want The Graph signals)
 
 ## Part 2: Deploy Web + Admin on Vercel
@@ -259,8 +258,6 @@ SYNTH_LLM_MODEL=openrouter/moonshotai/kimi-k2.5
 SYNTH_LLM_MAX_TOKENS=200000
 SYNTH_CODEGEN_MODE=llm
 SYNTH_CODEGEN_MAX_TOKENS=3500
-DISCORD_BOT_TOKEN=
-DISCORD_LAUNCH_CHANNEL_ID=
 BASESCAN_API_KEY=
 DEPLOYER_PRIVATE_KEY=
 DEPLOYER_ADDRESS=
@@ -275,6 +272,8 @@ CORS_ORIGIN=https://synth.xyz
 ```
 
 Note: Twitter API keys are only needed for posting. This setup runs without X/Twitter scraping by default and uses RSS/web sources instead.
+
+Note: `web_search` enrichment is strongest with a Brave API key. If you skip it, SYNTH still uses RSS + Farcaster + Dune and will continue to operate.
 
 Note: `OPENROUTER_API_KEY` powers the LLM decision gate, admin chat, and fallback if the OpenClaw agent loop fails. OpenClaw expects model refs as `provider/model`, so `openrouter/moonshotai/kimi-k2.5` is correct. 
 
@@ -349,20 +348,11 @@ Test the agent loop:
 openclaw agent --agent synth --message "Reply JSON {\"ok\":true}" --json
 ```
 
-### Step 3.2 (Optional): Use Brave Instead of Perplexity
+### Step 3.2 (Optional): Enable web_search
 
-If you do not want Perplexity search, disable it and use Brave:
+OpenClaw `web_search` needs a provider key (Brave or Perplexity). If you don’t have one, keep search disabled and SYNTH will still run on RSS + Farcaster + Dune.
 
-1. Set `tools.web.search.enabled` to `false` in `~/.openclaw/openclaw.json`.
-2. Run:
-
-```
-openclaw configure --section web
-```
-
-If you disable search entirely, the agent still works using RSS + onchain + Farcaster data.
-
-If you prefer Brave Search instead of Perplexity:
+To enable web_search later:
 
 ```
 openclaw configure --section web
@@ -378,7 +368,6 @@ Edit `synth/packages/agent/agent.config.json`:
 - Configure deep research in `research` (how many signals to enrich).
 - Configure the LLM decision gate in `decision` (min score/confidence thresholds).
 - Add Farcaster channels in `farcaster.channels`.
-- Add Discord channel IDs in `discord.channelIds`.
 - Add Dune query IDs in `dune.queryIds` (Base activity + bridge flow queries are included by default).
 - Keep `autoDeployMainnet` false until you are ready.
 
@@ -496,6 +485,8 @@ OPENCLAW_SESSION_MODE=stateless
 Then in the Admin UI:
 - `/chat` to talk to the agent
 - `/skills` to edit skills and sync to OpenClaw workspace
+- `/` (dashboard) to pause/resume runs, clear drops, or reset memory
+  - Use **Clear Chat** inside `/chat` to wipe chat history
 
 Skills updates are read on every chat request and every cycle run, so no restart is needed.
 
@@ -512,14 +503,6 @@ Skills updates are read on every chat request and every cycle run, so no restart
 2. Generate `NEYNAR_API_KEY`.
 3. Create a signer and copy `NEYNAR_SIGNER_UUID`.
 4. Put both in `~/.openclaw/.env`.
-
-### Discord
-
-1. Create a Discord bot.
-2. Enable Message Content Intent.
-3. Invite the bot to your server.
-4. Put the bot token in `~/.openclaw/.env`.
-5. Add the channel ID to `DISCORD_LAUNCH_CHANNEL_ID`.
 
 ## Part 7: Deploy the Suggestions Contract (Manual)
 

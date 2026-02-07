@@ -8,6 +8,7 @@ interface DropItem {
   name: string;
   type: string;
   contractAddress: string;
+  appMode?: 'onchain' | 'offchain';
   deployedAt: string;
   explorerUrl?: string;
   txHash?: string;
@@ -44,6 +45,9 @@ export function DeploymentHistory() {
               <div className={styles.links}>
                 {drop.explorerUrl && (
                   <a href={drop.explorerUrl} target="_blank" rel="noreferrer">Explorer</a>
+                )}
+                {!drop.explorerUrl && drop.appMode === 'offchain' && (
+                  <span className={styles.mono}>Offchain build</span>
                 )}
                 {drop.txHash && (
                   <span className={styles.mono}>{drop.txHash.slice(0, 10)}…</span>

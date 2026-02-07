@@ -8,6 +8,8 @@ const decisionSchema = {
     go: { type: 'boolean' },
     trendId: { type: 'string' },
     dropType: { type: 'string', enum: ['token', 'nft', 'dapp', 'contract'] },
+    contractType: { type: 'string', enum: ['erc20', 'erc721', 'erc1155', 'none'] },
+    appMode: { type: 'string', enum: ['onchain', 'offchain'] },
     name: { type: 'string', minLength: 3 },
     symbol: { type: 'string', minLength: 2 },
     description: { type: 'string', minLength: 10, maxLength: 180 },
@@ -47,12 +49,20 @@ function parseDecision(raw: unknown): DecisionRecord | null {
   if (!data.tagline || !data.hero || !data.cta || !data.rationale) return null;
   if (!Array.isArray(data.features) || data.features.length < 3) return null;
   const confidence = typeof data.confidence === 'number' ? data.confidence : 0.5;
+  const inferredContractType = data.contractType
+    ?? (data.dropType === 'token' ? 'erc20' : data.dropType === 'nft' ? 'erc721' : data.dropType === 'contract' ? 'erc1155' : 'none');
+  const inferredAppMode = data.appMode
+    ?? (data.dropType === 'dapp'
+      ? (inferredContractType === 'none' ? 'offchain' : 'onchain')
+      : 'onchain');
   return {
     id: `decision-${Date.now()}`,
     createdAt: nowIso(),
     trendId: String(data.trendId),
     go: Boolean(data.go),
     dropType: data.dropType,
+    contractType: inferredContractType,
+    appMode: inferredAppMode,
     name: String(data.name),
     symbol: String(data.symbol ?? 'SYNTH').slice(0, 6).toUpperCase(),
     description: String(data.description),
@@ -81,7 +91,7 @@ export async function generateDecision(input: {
   const maxTokens = process.env.SYNTH_LLM_MAX_TOKENS ? Number(process.env.SYNTH_LLM_MAX_TOKENS) : 900;
 
   const prompt = [
-    'You are SYNTH, an autonomous onchain product builder on Base L2.',
+    'You are SYNTH, an autonomous product builder on Base L2.',
     'Given trend signals and evidence, decide whether to build today.',
     'Return JSON only that follows the schema.',
     'If a trend is weak or redundant, set go=false with a rationale.',
@@ -90,6 +100,9 @@ export async function generateDecision(input: {
     'Default to dapp when unsure. Only choose token for a strong, newsworthy market event corroborated by multiple sources.',
     'Only choose NFT when the signal is clearly about minting or a collection launch.',
     'If the signal is a user suggestion requesting a webapp/dashboard, choose dapp.',
+    'For dapp drops, decide appMode: "onchain" if it needs contract reads/writes, "offchain" if it is a standalone webapp.',
+    'Set contractType to "none" when no contract is required (offchain webapp).',
+    'Prioritize web_search evidence and onchain/Dune insights when they point to a shared thesis.',
     'Prioritize the most recent signals when all else is equal.',
     'Synthesize across multiple signals; if several sources point to the same pattern, select that thesis and cite the strongest representative trendId.',
     input.prioritySignalId ? `Priority signal: ${input.prioritySignalId} should be preferred unless unsafe, spam, or incoherent.` : '',

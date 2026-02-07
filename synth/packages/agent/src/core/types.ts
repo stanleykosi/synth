@@ -1,4 +1,4 @@
-export type TrendSource = 'twitter' | 'farcaster' | 'discord' | 'onchain' | 'suggestion' | 'web';
+export type TrendSource = 'twitter' | 'farcaster' | 'onchain' | 'suggestion' | 'web';
 
 export interface TrendSignal {
   id: string;
@@ -12,6 +12,8 @@ export interface TrendSignal {
 }
 
 export type DropType = 'token' | 'nft' | 'dapp' | 'contract';
+export type AppMode = 'onchain' | 'offchain';
+export type ContractType = 'erc20' | 'erc721' | 'erc1155' | 'none';
 
 export interface DropRecord {
   id: string;
@@ -19,6 +21,8 @@ export interface DropRecord {
   description: string;
   type: DropType;
   contractAddress: string;
+  contractType?: ContractType;
+  appMode?: AppMode;
   githubUrl: string;
   webappUrl?: string;
   explorerUrl?: string;
@@ -56,6 +60,8 @@ export interface DecisionRecord {
   trendId: string;
   go: boolean;
   dropType: DropType;
+  contractType?: ContractType;
+  appMode?: AppMode;
   name: string;
   symbol: string;
   description: string;

@@ -5,6 +5,7 @@
 - Use `browser` only when a source requires JS or login.
 - Use `exec` only for Foundry or required build steps.
 - Keep outputs structured and JSON‑safe.
+- If `web_search` is unavailable, fall back to RSS + Dune + Farcaster signals.
 
 ## Guardrails
 - Avoid expensive or unnecessary tool calls.
