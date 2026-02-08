@@ -9,7 +9,7 @@ export default function SuggestPage() {
           <h1>Inject Signal</h1>
           <p className={styles.description}>
             Submit a trend, need, or product idea. Stake ETH to prioritize your signal.
-            SYNTH analyzes top suggestions and may build yours.
+            SYNTHCLAW analyzes top suggestions and may build yours.
           </p>
 
           <div className={styles.rules}>

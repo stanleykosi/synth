@@ -82,7 +82,6 @@ export default function AdminDashboard() {
           </header>
           <MemoryPanel />
         </section>
-      </div>
     </div>
   );
 }
