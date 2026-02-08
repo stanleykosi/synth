@@ -158,9 +158,10 @@ async function postFarcaster(baseDir: string, text: string) {
   await log(baseDir, 'info', 'Trend post published to Farcaster.');
 }
 
-export async function runTrendPost(baseDir: string) {
+export async function runTrendPost(baseDir: string, options?: { force?: boolean }) {
   if (isPosting) return;
   isPosting = true;
+  const force = Boolean(options?.force);
 
   try {
     const lookbackHoursRaw = process.env.SYNTH_TREND_POST_LOOKBACK_HOURS
@@ -184,7 +185,7 @@ export async function runTrendPost(baseDir: string) {
       : 150;
     const cooldownMinutes = Number.isFinite(cooldownRaw) && cooldownRaw > 0 ? cooldownRaw : 150;
     const lastPostMinutes = minutesSince(posts[0]?.createdAt);
-    if (lastPostMinutes !== null && lastPostMinutes < cooldownMinutes) {
+    if (!force && lastPostMinutes !== null && lastPostMinutes < cooldownMinutes) {
       await log(baseDir, 'info', `Trend post skipped: last post ${lastPostMinutes.toFixed(0)}m ago (< ${cooldownMinutes}m).`);
       return;
     }

@@ -74,7 +74,7 @@ export function ControlPanel() {
     const res = await fetch('/api/control', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'trend-post' }),
+      body: JSON.stringify({ action: 'trend-post', force: true }),
     });
     if (!res.ok) {
       setError('Failed to post trends');
