@@ -29,21 +29,34 @@ export async function fetchSuggestionSignals(config: AgentConfig): Promise<Trend
     args: [10n]
   });
 
-  return suggestions.map((suggestion) => {
-    const stake = Number(formatEther(suggestion.stake));
-    const multiplier = config.scoring.suggestionStakeMultiplier || 1000;
-    const engagement = Math.min(stake * multiplier, config.scoring.engagementCap);
-    return {
-      id: `suggestion-${suggestion.id.toString()}`,
+  const lookbackRaw = process.env.SYNTH_SUGGESTION_LOOKBACK_HOURS;
+  const lookbackHours = lookbackRaw ? Number(lookbackRaw) : 168;
+  const cutoff = Number.isFinite(lookbackHours) && lookbackHours > 0
+    ? Date.now() - lookbackHours * 3_600_000
+    : null;
+
+  return suggestions
+    .filter((suggestion) => {
+      if (!cutoff) return true;
+      const ts = Number(suggestion.timestamp) * 1000;
+      if (!Number.isFinite(ts)) return true;
+      return ts >= cutoff;
+    })
+    .map((suggestion) => {
+      const stake = Number(formatEther(suggestion.stake));
+      const multiplier = config.scoring.suggestionStakeMultiplier || 1000;
+      const engagement = Math.min(stake * multiplier, config.scoring.engagementCap);
+      return {
+        id: `suggestion-${suggestion.id.toString()}`,
       source: 'suggestion',
       summary: suggestion.content.slice(0, 240),
       score: scoreSignal('suggestion', engagement, config),
       capturedAt: new Date(Number(suggestion.timestamp) * 1000).toISOString(),
       engagement,
-      meta: {
-        submitter: suggestion.submitter,
-        stakeEth: stake
-      }
-    };
-  });
+        meta: {
+          submitter: suggestion.submitter,
+          stakeEth: stake
+        }
+      };
+    });
 }

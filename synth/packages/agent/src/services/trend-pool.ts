@@ -24,6 +24,47 @@ function parseTime(value?: string): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function resolvePoolMaxEntries(): number {
+  const raw = process.env.SYNTH_TREND_POOL_MAX_ENTRIES;
+  const parsed = raw ? Number(raw) : 1000;
+  if (!Number.isFinite(parsed) || parsed <= 0) return 1000;
+  return Math.floor(parsed);
+}
+
+function resolvePoolMaxAgeHours(): number | null {
+  const raw = process.env.SYNTH_TREND_POOL_MAX_AGE_HOURS;
+  if (!raw) return 168;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function prunePool(pool: TrendPoolEntry[]): TrendPoolEntry[] {
+  const maxEntries = resolvePoolMaxEntries();
+  const maxAgeHours = resolvePoolMaxAgeHours();
+  const cutoff = maxAgeHours ? Date.now() - maxAgeHours * 3_600_000 : null;
+
+  const normalized = pool.map((entry) => ({
+    ...entry,
+    key: entry.key || buildTrendKey(entry)
+  }));
+
+  const filtered = normalized.filter((entry) => {
+    if (!cutoff) return true;
+    const time = parseTime(entry.capturedAt) ?? parseTime(entry.detectedAt);
+    if (time === null) return true;
+    return time >= cutoff;
+  });
+
+  const sorted = filtered.sort((a, b) => {
+    const timeA = parseTime(a.detectedAt) ?? parseTime(a.capturedAt) ?? 0;
+    const timeB = parseTime(b.detectedAt) ?? parseTime(b.capturedAt) ?? 0;
+    return timeB - timeA;
+  });
+
+  return sorted.slice(0, maxEntries);
+}
+
 export async function appendTrendPool(baseDir: string, signals: TrendSignal[], options?: {
   runId?: string;
   detectedAt?: string;
@@ -42,7 +83,7 @@ export async function appendTrendPool(baseDir: string, signals: TrendSignal[], o
   }));
 
   pool.push(...entries);
-  await saveTrendPool(baseDir, pool);
+  await saveTrendPool(baseDir, prunePool(pool));
   return entries;
 }
 
