@@ -14,9 +14,9 @@ import { fetchSuggestionSignals } from '../sources/suggestions.js';
 import { fetchGraphSignals } from '../sources/graph.js';
 import { runForge, parseDeployedAddress, readBroadcastGasInfo } from '../services/foundry.js';
 import { ensureRepo, updateRepoDescription } from '../services/github.js';
-import { prepareRepoTemplate, initAndPushRepo, commitAndPushChanges } from '../services/repo.js';
+import { prepareRepoTemplate, initAndPushRepo, commitAndPushChanges, type GeneratedFile } from '../services/repo.js';
 import { generateRepoFiles } from '../services/codegen.js';
-import { createVercelProject, createVercelDeployment, getVercelDeployment } from '../services/vercel.js';
+import { createVercelProject, createVercelDeployment, getVercelDeployment, getVercelDeploymentLogTail } from '../services/vercel.js';
 import { broadcastDrop } from '../services/broadcast.js';
 import { buildEvidence } from '../services/research.js';
 import { generateDecision } from '../services/llm.js';
@@ -31,6 +31,62 @@ import { applyRepairFiles, generateRepairFiles, listRepoFiles } from '../service
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function extractRepairPaths(errorMessage: string): string[] {
+  const results = new Set<string>();
+  const normalized = errorMessage.replace(/\\/g, '/');
+  const regex = /(?:^|[\s(])(?:\.\/)?(src\/[^\s:]+?\.(?:ts|tsx|js|jsx|css|json|md))/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(normalized)) !== null) {
+    const value = match[1].replace(/^\.\//, '');
+    results.add(value);
+  }
+  if (normalized.includes('package.json')) results.add('package.json');
+  if (normalized.includes('next.config')) results.add('next.config.js');
+  if (normalized.includes('tsconfig')) results.add('tsconfig.json');
+  return Array.from(results);
+}
+
+async function buildRepairSnippets(
+  repoDir: string,
+  repoFiles: string[],
+  errorMessage: string
+): Promise<Array<{ path: string; content: string }>> {
+  const candidates = new Set<string>([
+    'src/app/layout.tsx',
+    'src/app/page.tsx',
+    'src/app/providers.tsx',
+    'src/app/globals.css',
+    'package.json',
+    'next.config.js',
+    'tsconfig.json'
+  ]);
+
+  for (const found of extractRepairPaths(errorMessage)) {
+    candidates.add(found);
+  }
+
+  const snippets: Array<{ path: string; content: string }> = [];
+  const maxSnippets = 8;
+  const maxChars = 5000;
+
+  for (const filePath of candidates) {
+    if (snippets.length >= maxSnippets) break;
+    if (!repoFiles.includes(filePath)) continue;
+    let generatedFiles: GeneratedFile[] | null = null;
+
+    try {
+      const raw = await fs.readFile(path.join(repoDir, filePath), 'utf-8');
+      if (!raw) continue;
+      const content = raw.length > maxChars ? `${raw.slice(0, maxChars)}\n/* truncated */` : raw;
+      snippets.push({ path: filePath, content });
+    } catch {
+      continue;
+    }
+  }
+
+  return snippets;
 }
 
 function cleanSignalSummary(text: string): string {
@@ -113,6 +169,35 @@ function ensureReadmeLinks(readme: string, links: { label: string; url: string }
   const missing = lines.filter((line) => !readme.includes(line));
   if (missing.length === 0) return readme;
   return `${readme.trim()}\n${missing.join('\n')}\n`;
+}
+
+async function updateReadmeWebUrl(repoDir: string, webUrl: string): Promise<boolean> {
+  if (!webUrl) return false;
+  const readmePath = path.join(repoDir, 'README.md');
+  let content: string;
+  try {
+    content = await fs.readFile(readmePath, 'utf-8');
+  } catch {
+    return false;
+  }
+
+  const lines = content.split(/\r?\n/);
+  let updated = false;
+  const webLine = `- Web: ${webUrl}`;
+  const webRegex = /^-\s*Web\s*:\s*.+$/i;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (webRegex.test(lines[i])) {
+      lines[i] = webLine;
+      updated = true;
+      break;
+    }
+  }
+
+  let next = updated ? lines.join('\n') : ensureReadmeLinks(content, [{ label: 'Web', url: webUrl }]);
+  if (next.trim() === content.trim()) return false;
+
+  await fs.writeFile(readmePath, `${next.trim()}\n`);
+  return true;
 }
 
 function applyRecencyBoost(signals: TrendSignal[], config: AgentConfig): TrendSignal[] {
@@ -816,7 +901,7 @@ export async function runDailyCycle(
 
     const uniqueSuffix = Date.now().toString().slice(-6);
     const baseSlug = sanitizeRepoName(dropName);
-    const uniqueMode = (process.env.SYNTH_REPO_UNIQUE ?? 'true').toLowerCase() === 'true';
+    const uniqueMode = (process.env.SYNTH_REPO_UNIQUE ?? 'false').toLowerCase() === 'true';
     const baseName = baseSlug || 'synth-drop';
     const repoName = uniqueMode ? `${baseName}-${uniqueSuffix}` : baseName;
     const repo = await ensureRepo({ name: repoName, description });
@@ -893,7 +978,7 @@ export async function runDailyCycle(
             repo: repoSlug
           });
           vercelProjectUrl = vercelProject.url;
-          await log(baseDir, 'info', `Vercel project linked: ${vercelProject.url}`);
+          await log(baseDir, 'info', `Vercel project created (deploy pending): ${vercelProject.url}`);
           break;
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
@@ -919,6 +1004,10 @@ export async function runDailyCycle(
       ? Number(process.env.SYNTH_VERCEL_POLL_TIMEOUT_MS)
       : 600000;
     const pollTimeoutMs = Number.isFinite(pollTimeoutRaw) && pollTimeoutRaw > 0 ? pollTimeoutRaw : 600000;
+    const logTailLinesRaw = process.env.SYNTH_VERCEL_LOG_TAIL_LINES
+      ? Number(process.env.SYNTH_VERCEL_LOG_TAIL_LINES)
+      : 120;
+    const logTailLines = Number.isFinite(logTailLinesRaw) && logTailLinesRaw > 0 ? logTailLinesRaw : 120;
 
     const repairAttemptsRaw = process.env.SYNTH_REPAIR_ATTEMPTS
       ? Number(process.env.SYNTH_REPAIR_ATTEMPTS)
@@ -950,7 +1039,11 @@ export async function runDailyCycle(
         }
 
         const repoFiles = await listRepoFiles(tempDir);
+        let currentReason = reason;
+        let lastFailure = '';
+
         for (let attempt = 1; attempt <= repairAttempts; attempt += 1) {
+          const fileSnippets = await buildRepairSnippets(tempDir, repoFiles, currentReason);
           const repairFiles = await generateRepairFiles({
             dropType,
             contractType,
@@ -972,15 +1065,17 @@ export async function runDailyCycle(
             repoUrl: repo.htmlUrl,
             webappUrl: vercelProjectUrl,
             rpcUrl,
-            errorMessage: reason,
+            errorMessage: currentReason,
             repoFiles,
+            fileSnippets,
             skills: contentSkills,
             context: llmContext
           });
 
           if (!repairFiles || repairFiles.length === 0) {
             await log(baseDir, 'warn', `Repair attempt ${attempt} produced no files.`);
-            return false;
+            lastFailure = 'no files';
+            continue;
           }
 
           let applied = 0;
@@ -989,11 +1084,13 @@ export async function runDailyCycle(
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             await log(baseDir, 'warn', `Repair attempt ${attempt} failed to apply files: ${message}`);
-            return false;
+            lastFailure = message;
+            continue;
           }
           if (applied === 0) {
             await log(baseDir, 'warn', `Repair attempt ${attempt} produced no applicable changes.`);
-            return false;
+            lastFailure = 'no applicable changes';
+            continue;
           }
 
           let committed = false;
@@ -1002,11 +1099,13 @@ export async function runDailyCycle(
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             await log(baseDir, 'warn', `Repair attempt ${attempt} failed to push changes: ${message}`);
-            return false;
+            lastFailure = message;
+            continue;
           }
           if (!committed) {
             await log(baseDir, 'warn', `Repair attempt ${attempt} had no git changes to push.`);
-            return false;
+            lastFailure = 'no git changes to push';
+            continue;
           }
 
           if (!vercelProjectUrl || !repoOwner) {
@@ -1027,12 +1126,14 @@ export async function runDailyCycle(
             const startedAt = Date.now();
             let state = deployment.readyState || deployment.status || '';
             let finalUrl = deployment.url;
+            let logTail: string | null = null;
             while (Date.now() - startedAt < pollTimeoutMs) {
               await sleep(pollIntervalMs);
               const latest = await getVercelDeployment(deployment.id);
               state = latest.readyState || latest.status || state;
               finalUrl = latest.url || finalUrl;
               if (state === 'ERROR' && latest.errorMessage) {
+                currentReason = latest.errorMessage;
                 await log(baseDir, 'warn', `Vercel repair error: ${latest.errorMessage}`);
               }
               if (state && ['READY', 'ERROR', 'CANCELED'].includes(state)) {
@@ -1045,17 +1146,49 @@ export async function runDailyCycle(
               if (finalUrl) {
                 vercelProjectUrl = finalUrl;
               }
+              if (tempDir && vercelProjectUrl) {
+                try {
+                  const updated = await updateReadmeWebUrl(tempDir, vercelProjectUrl);
+                  if (updated) {
+                    const committed = await commitAndPushChanges(tempDir, 'Update README with live URL');
+                    if (committed) {
+                      await log(baseDir, 'info', 'README updated with live URL after repair deployment.');
+                    }
+                  }
+                } catch (error) {
+                  const message = error instanceof Error ? error.message : String(error);
+                  await log(baseDir, 'warn', `Failed to update README after repair deployment: ${message}`);
+                }
+              }
               await log(baseDir, 'info', `Repair deployment ready: ${finalUrl ?? vercelProjectUrl ?? 'unknown url'}`);
               return true;
             }
 
+            if (state === 'ERROR' && !logTail) {
+              try {
+                logTail = await getVercelDeploymentLogTail(deployment.id, logTailLines);
+                if (logTail) {
+                  currentReason = `${currentReason}\nBuild log tail:\n${logTail}`.trim();
+                  await log(baseDir, 'warn', `Vercel repair build log (tail):\n${logTail}`);
+                }
+              } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                await log(baseDir, 'warn', `Vercel repair log fetch failed: ${message}`);
+              }
+            }
+
             await log(baseDir, 'warn', `Repair deployment attempt ${attempt} ended with state "${state}".`);
+            lastFailure = `deployment ${state}`;
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             await log(baseDir, 'warn', `Repair deployment attempt ${attempt} failed: ${message}`);
+            lastFailure = message;
           }
         }
 
+        if (lastFailure) {
+          await log(baseDir, 'warn', `Repair attempts exhausted (${lastFailure}).`);
+        }
         return false;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -1066,7 +1199,7 @@ export async function runDailyCycle(
 
     try {
       const codegenMode = (process.env.SYNTH_CODEGEN_MODE ?? 'llm').toLowerCase();
-      const generatedFiles = codegenMode === 'off' ? null : await generateRepoFiles({
+      generatedFiles = codegenMode === 'off' ? null : await generateRepoFiles({
         dropType,
         contractType,
         appMode,
@@ -1147,6 +1280,7 @@ export async function runDailyCycle(
             const startedAt = Date.now();
             let state = deployment.readyState || deployment.status || '';
             let finalUrl = deployment.url;
+            let logTail: string | null = null;
             while (Date.now() - startedAt < pollTimeoutMs) {
               await sleep(pollIntervalMs);
               const latest = await getVercelDeployment(deployment.id);
@@ -1166,8 +1300,36 @@ export async function runDailyCycle(
               if (finalUrl) {
                 vercelProjectUrl = finalUrl;
               }
+              if (tempDir && vercelProjectUrl) {
+                try {
+                  const updated = await updateReadmeWebUrl(tempDir, vercelProjectUrl);
+                  if (updated) {
+                    const committed = await commitAndPushChanges(tempDir, 'Update README with live URL');
+                    if (committed) {
+                      await log(baseDir, 'info', 'README updated with live URL after deployment.');
+                    }
+                  }
+                } catch (error) {
+                  const message = error instanceof Error ? error.message : String(error);
+                  await log(baseDir, 'warn', `Failed to update README after deployment: ${message}`);
+                }
+              }
               await log(baseDir, 'info', `Vercel deployment ready: ${finalUrl ?? vercelProjectUrl ?? 'unknown url'}`);
               break;
+            }
+
+            if (state === 'ERROR' && !logTail) {
+              try {
+                logTail = await getVercelDeploymentLogTail(deployment.id, logTailLines);
+                if (logTail) {
+                  const base = vercelDeploymentError ? `${vercelDeploymentError}\n` : '';
+                  vercelDeploymentError = `${base}Build log tail:\n${logTail}`.trim();
+                  await log(baseDir, 'warn', `Vercel build log (tail):\n${logTail}`);
+                }
+              } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                await log(baseDir, 'warn', `Vercel log fetch failed: ${message}`);
+              }
             }
 
             await log(baseDir, 'warn', `Vercel deployment attempt ${attempt} ended with state "${state}".`);
@@ -1229,7 +1391,7 @@ export async function runDailyCycle(
       appMode,
       builder: builderInfo,
       githubUrl: repo.htmlUrl,
-      webappUrl: vercelProjectUrl,
+      webappUrl: vercelDeploymentState === 'READY' ? vercelProjectUrl : undefined,
       explorerUrl: explorerUrl || undefined,
       network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
       deployedAt: nowIso(),
