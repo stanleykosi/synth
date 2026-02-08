@@ -1,15 +1,16 @@
 .card {
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid #000;
   border-radius: var(--radius-lg);
   padding: var(--space-lg);
   transition: all var(--transition-base);
+  box-shadow: 2px 2px 0px rgba(0,0,0,1);
 }
 
 .card:hover {
-  border-color: var(--border-accent);
-  box-shadow: var(--shadow-glow);
-  transform: translateY(-4px);
+  border-color: var(--accent-primary);
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px rgba(0,0,0,1);
 }
 
 .header {
@@ -20,20 +21,30 @@
 }
 
 .type {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
 }
 
 .date {
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-muted);
 }
 
 .name {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
+  font-weight: 600;
   margin-bottom: var(--space-sm);
+  color: var(--text-primary);
 }
 
 .description {
@@ -48,20 +59,26 @@
   flex-wrap: wrap;
   gap: var(--space-sm);
   margin-bottom: var(--space-md);
-  color: var(--text-muted);
-  font-size: 0.75rem;
 }
 
 .metaItem {
-  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
+  background: var(--bg-tertiary);
 }
 
 .links {
   display: flex;
   gap: var(--space-sm);
   flex-wrap: wrap;
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .link {
@@ -72,8 +89,8 @@
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-secondary);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
+  background: transparent;
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   transition: all var(--transition-fast);
 }
@@ -84,13 +101,14 @@
 }
 
 .link.primary {
-  background: var(--accent-primary);
-  color: var(--bg-primary);
-  border-color: var(--accent-primary);
+  background: var(--text-primary);
+  color: var(--bg-secondary);
+  border-color: var(--text-primary);
 }
 
 .link.primary:hover {
-  box-shadow: 0 0 16px rgba(0, 255, 163, 0.4);
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
 }
 
 .arrow {

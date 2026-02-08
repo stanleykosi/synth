@@ -1,14 +1,11 @@
-import type { Drop } from '@/lib/api';
-import { fetchDrops } from '@/lib/api';
-import { DropsView } from '@/components/DropsView';
-import styles from './page.module.css';
+import type { Drop } from "@/lib/api";
+import { fetchDrops } from "@/lib/api";
+import { DropsView } from "@/components/DropsView";
+import styles from "./page.module.css";
 
 async function getDrops(): Promise<Drop[]> {
-  try {
-    return await fetchDrops();
-  } catch {
-    return [];
-  }
+  const drops = await fetchDrops();
+  return drops;
 }
 
 export default async function DropsPage() {
@@ -16,12 +13,13 @@ export default async function DropsPage() {
 
   return (
     <div className="container">
-      <div className={styles.header}>
+      <header className={styles.header}>
         <h1>All Drops</h1>
         <p className={styles.description}>
-          Every product SYNTH has synthesized and deployed.
+          The complete archive of products synthesized, built, and deployed
+          autonomously by SYNTH.
         </p>
-      </div>
+      </header>
 
       <DropsView drops={drops} />
     </div>

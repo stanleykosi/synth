@@ -13,21 +13,27 @@ import styles from './page.module.css';
 export default function AdminDashboard() {
   return (
     <div className={styles.dashboard}>
-      <h1>SYNTH Admin</h1>
+      <h1 className={styles.title}>SYNTH Control Center</h1>
 
       <div className={styles.grid}>
-        <section className={styles.section}>
-          <h2>Wallet Status</h2>
+        <section className={`${styles.section} ${styles["span-4"]}`}>
+          <header>
+            <h2>Wallet</h2>
+          </header>
           <WalletStatus />
         </section>
 
-        <section className={styles.section}>
-          <h2>Controls</h2>
+        <section className={`${styles.section} ${styles["span-4"]}`}>
+          <header>
+            <h2>Pipeline Priority</h2>
+          </header>
           <ControlPanel />
         </section>
 
-        <section className={styles.section}>
-          <h2>Pipeline Status</h2>
+        <section className={`${styles.section} ${styles["span-4"]}`}>
+          <header>
+            <h2>Pipeline Status</h2>
+          </header>
           <PipelineStatus />
         </section>
       </div>
@@ -42,30 +48,41 @@ export default function AdminDashboard() {
         <QueuePanel />
       </section>
 
-      <section className={styles.section}>
-        <h2>API Limits</h2>
-        <RateLimitPanel />
-      </section>
+        <section className={`${styles.section} ${styles["span-4"]}`}>
+          <header>
+            <h2>API Quotas</h2>
+          </header>
+          <RateLimitPanel />
+        </section>
 
-      <section className={styles.section}>
-        <h2>Latest Decision</h2>
-        <DecisionPanel />
-      </section>
+        <section className={`${styles.section} ${styles["span-6"]}`}>
+          <header>
+            <h2>Execution Metrics</h2>
+          </header>
+          <MetricsPanel />
+        </section>
 
-      <section className={styles.section}>
-        <h2>Deployment History</h2>
-        <DeploymentHistory />
-      </section>
+        <section className={`${styles.section} ${styles["span-6"]}`}>
+          <header>
+            <h2>Deployment History</h2>
+          </header>
+          <DeploymentHistory />
+        </section>
 
-      <section className={styles.section}>
-        <h2>Memory Snapshot</h2>
-        <MemoryPanel />
-      </section>
+        <section className={`${styles.section} ${styles["span-12"]}`}>
+          <header>
+            <h2>Cognitive Process</h2>
+          </header>
+          <DecisionPanel />
+        </section>
 
-      <section className={styles.section}>
-        <h2>Decision Logs</h2>
-        <LogViewer />
-      </section>
+        <section className={`${styles.section} ${styles["span-12"]}`}>
+          <header>
+            <h2>Memory Heap Snapshot</h2>
+          </header>
+          <MemoryPanel />
+        </section>
+      </div>
     </div>
   );
 }

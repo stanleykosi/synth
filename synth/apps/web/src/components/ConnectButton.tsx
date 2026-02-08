@@ -1,20 +1,24 @@
-'use client';
+"use client";
 
-import { useAccount, useConnect, useDisconnect } from 'wagmi';
-import { injected } from 'wagmi/connectors';
-import styles from './ConnectButton.module.css';
+import { useEffect, useState } from "react";
+import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { injected } from "wagmi/connectors";
+import { Wallet } from "lucide-react";
+import styles from "./ConnectButton.module.css";
 
 export function ConnectButton() {
+  const [mounted, setMounted] = useState(false);
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
 
-  if (isConnected && address) {
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (mounted && isConnected && address) {
     return (
-      <button
-        className={styles.connected}
-        onClick={() => disconnect()}
-      >
+      <button className={styles.connected} onClick={() => disconnect()}>
         <span className={styles.dot} />
         <span className={styles.address}>
           {address.slice(0, 6)}...{address.slice(-4)}
@@ -25,9 +29,10 @@ export function ConnectButton() {
 
   return (
     <button
-      className="btn btn-primary"
+      className={styles.connectBtn}
       onClick={() => connect({ connector: injected() })}
     >
+      <Wallet size={16} />
       Connect
     </button>
   );

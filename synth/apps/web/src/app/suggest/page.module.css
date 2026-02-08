@@ -1,38 +1,60 @@
 .page {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-3xl);
-  padding: var(--space-3xl) 0;
-  min-height: 80vh;
+  gap: var(--space-2xl);
+  padding: var(--space-2xl) 0;
+  min-height: 70vh;
   align-items: start;
 }
 
 @media (max-width: 1024px) {
   .page {
     grid-template-columns: 1fr;
+    padding: var(--space-xl) 0;
   }
 }
 
 .content h1 {
+  font-size: 3rem;
+  letter-spacing: -0.02em;
   margin-bottom: var(--space-md);
+  color: var(--text-primary);
 }
 
 .description {
   color: var(--text-secondary);
-  margin-bottom: var(--space-xl);
+  font-size: 1.125rem;
+  line-height: 1.6;
+  margin-bottom: var(--space-2xl);
+  max-width: 500px;
 }
 
 .rules {
-  padding: var(--space-lg);
-  background: var(--bg-secondary);
+  padding: var(--space-xl);
+  background: var(--bg-card);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
 }
 
 .rules h3 {
-  font-size: 1rem;
-  margin-bottom: var(--space-md);
-  color: var(--accent-primary);
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-lg);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.rules h3::before {
+  content: '';
+  width: 4px;
+  height: 16px;
+  background: var(--accent-primary);
+  border-radius: 2px;
 }
 
 .rules ul {
@@ -42,9 +64,10 @@
 .rules li {
   position: relative;
   padding-left: var(--space-lg);
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--space-md);
   font-size: 0.875rem;
   color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 .rules li::before {
@@ -56,8 +79,9 @@
 }
 
 .formWrapper {
-  padding: var(--space-xl);
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
 }
