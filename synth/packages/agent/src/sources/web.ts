@@ -10,6 +10,28 @@ const parser = new Parser({
   }
 });
 
+function parseDate(value?: string): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function resolveLookbackHours(): number | null {
+  const raw = process.env.SYNTH_WEB_LOOKBACK_HOURS;
+  if (!raw) return 72;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function isWithinLookback(publishedAt: string | undefined, lookbackHours: number | null): boolean {
+  if (!lookbackHours) return true;
+  const published = parseDate(publishedAt);
+  if (published === null) return true;
+  const ageHours = (Date.now() - published) / 36e5;
+  return ageHours <= lookbackHours;
+}
+
 function computeEngagement(publishedAt?: string): number {
   if (!publishedAt) return 20;
   const published = new Date(publishedAt).getTime();
@@ -41,19 +63,30 @@ export async function fetchWebSignals(config: AgentConfig): Promise<TrendSignal[
   }
 
   const signals: TrendSignal[] = [];
+  const lookbackHours = resolveLookbackHours();
   for (const source of config.web.sources) {
     try {
       const feed = await parser.parseURL(source.url);
-      const items = (feed.items ?? []).slice(0, config.web.perSourceLimit);
+      const items = [...(feed.items ?? [])]
+        .sort((a, b) => {
+          const timeA = parseDate(a.isoDate ?? a.pubDate) ?? 0;
+          const timeB = parseDate(b.isoDate ?? b.pubDate) ?? 0;
+          return timeB - timeA;
+        })
+        .slice(0, config.web.perSourceLimit);
       for (const item of items) {
+        const publishedAt = item.isoDate ?? item.pubDate;
+        if (!isWithinLookback(publishedAt, lookbackHours)) {
+          continue;
+        }
         const summary = buildSummary(item.title, item.contentSnippet ?? item.content);
-        const engagement = computeEngagement(item.isoDate ?? item.pubDate);
+        const engagement = computeEngagement(publishedAt);
         signals.push({
           id: buildId(source.name, item.link ?? item.guid, item.title),
           source: 'web',
           summary,
           score: scoreSignal('web', engagement, config),
-          capturedAt: item.isoDate ?? item.pubDate ?? new Date().toISOString(),
+          capturedAt: publishedAt ?? new Date().toISOString(),
           url: item.link,
           engagement,
           meta: { source: source.name }

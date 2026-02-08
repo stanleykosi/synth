@@ -56,6 +56,7 @@ export async function buildEvidence(signals: TrendSignal[], config: AgentConfig)
 
   const evidenceMap: Record<string, EvidenceItem[]> = {};
   const limit = Math.max(1, config.research.maxSignals);
+  const freshness = process.env.SYNTH_WEB_SEARCH_FRESHNESS?.trim();
 
   for (const signal of signals.slice(0, limit)) {
     try {
@@ -64,7 +65,8 @@ export async function buildEvidence(signals: TrendSignal[], config: AgentConfig)
         action: 'json',
         args: {
           query: signal.summary,
-          count: config.research.resultsPerSignal
+          count: config.research.resultsPerSignal,
+          ...(freshness ? { freshness } : {})
         }
       });
 

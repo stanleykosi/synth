@@ -27,6 +27,7 @@ interface RepairInput {
   rpcUrl: string;
   errorMessage: string;
   repoFiles: string[];
+  fileSnippets?: Array<{ path: string; content: string }>;
   skills?: string;
   context?: string;
 }
@@ -135,6 +136,7 @@ export async function generateRepairFiles(input: RepairInput): Promise<Generated
     'You are SYNTH. A deployment failed. Produce a minimal repair patch.',
     'Return JSON only. Follow the schema.',
     'Only output files that need to change to fix the error.',
+    'You are given repo file listings and fileSnippets (path + content). Use them.',
     'Allowed files: src/**, public/**, contracts/src/**, contracts/script/**, contracts/README.md, README.md, next.config.js, package.json, tsconfig.json, .env.example.',
     'Do not use placeholders like __DROP_NAME__.',
     'Do not invent metrics or data.',
@@ -167,7 +169,8 @@ export async function generateRepairFiles(input: RepairInput): Promise<Generated
       webappUrl: input.webappUrl ?? '',
       rpcUrl: input.rpcUrl,
       error: input.errorMessage,
-      repoFiles: input.repoFiles
+      repoFiles: input.repoFiles,
+      fileSnippets: input.fileSnippets ?? []
     },
     schema,
     model,

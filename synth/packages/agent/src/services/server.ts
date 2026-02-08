@@ -304,7 +304,7 @@ export function startServer(baseDir: string, config: AgentConfig) {
     }
 
     if (action === 'trend-post') {
-      await runTrendPost(baseDir);
+      await runTrendPost(baseDir, { force });
       await log(baseDir, 'info', 'Manual trend post triggered via admin.');
       return res.json({ ok: true });
     }
