@@ -38,8 +38,12 @@ export function Header() {
     <header className={styles.header}>
       <div className={styles.container}>
         <a href="/" className={styles.logo}>
-          <span className={styles.logoIcon}>◈</span>
-          <span className={styles.logoText}>SYNTH</span>
+          <img
+            src="/images/logo.png"
+            alt="SYNTHCLAW"
+            className={styles.logoImage}
+          />
+          <span className={styles.logoText}>SYNTHCLAW</span>
         </a>
         <nav className={styles.nav}>
           {navLinks.map((link) => (
