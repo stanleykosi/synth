@@ -13,7 +13,7 @@ export interface ArtifactInput {
   evidence?: EvidenceItem[];
   content?: DropContent | null;
   generatedFiles?: GeneratedFile[] | null;
-  social?: { thread: string[]; farcaster: string } | null;
+  social?: { thread: string[]; farcaster: string; farcasterThread?: string[] } | null;
   contractsDir?: string;
 }
 

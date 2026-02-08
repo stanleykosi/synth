@@ -26,7 +26,21 @@ function buildThread(drop: DropRecord, trend: TrendSignal): string[] {
   ];
 }
 
-export async function broadcastDrop(input: BroadcastInput): Promise<{ thread: string[]; farcaster: string }> {
+function clampFarcaster(text: string): string {
+  if (text.length <= 320) return text;
+  const cut = text.slice(0, 320);
+  return cut.replace(/\s+\S*$/, '').trim();
+}
+
+function normalizeFarcasterThread(lines: string[]): string[] {
+  return lines
+    .filter((line) => typeof line === 'string' && line.trim().length > 0)
+    .map((line) => clampFarcaster(line.trim()))
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+export async function broadcastDrop(input: BroadcastInput): Promise<{ thread: string[]; farcaster: string; farcasterThread?: string[] }> {
   const generated = await generateSocialCopy({
     drop: input.drop,
     trend: input.trend,
@@ -36,20 +50,23 @@ export async function broadcastDrop(input: BroadcastInput): Promise<{ thread: st
   const thread = generated?.thread && generated.thread.length > 0
     ? generated.thread
     : buildThread(input.drop, input.trend);
-  const farcaster = generated?.farcaster || thread[0];
+  const farcasterThread = generated?.farcasterThread && generated.farcasterThread.length > 0
+    ? normalizeFarcasterThread(generated.farcasterThread)
+    : normalizeFarcasterThread(thread);
+  const farcaster = farcasterThread[0] || thread[0];
 
   await Promise.all([
     postTwitterThread(input.baseDir, thread).catch(async (error) => {
       const message = error instanceof Error ? error.message : String(error);
       await log(input.baseDir, 'warn', `Twitter broadcast failed: ${message}`);
     }),
-    postFarcaster(input.baseDir, farcaster).catch(async (error) => {
+    postFarcasterThread(input.baseDir, farcasterThread).catch(async (error) => {
       const message = error instanceof Error ? error.message : String(error);
       await log(input.baseDir, 'warn', `Farcaster broadcast failed: ${message}`);
     })
   ]);
 
-  return { thread, farcaster };
+  return { thread, farcaster, farcasterThread };
 }
 
 async function postTwitterThread(baseDir: string, thread: string[]) {
@@ -82,7 +99,7 @@ async function postTwitterThread(baseDir: string, thread: string[]) {
   await log(baseDir, 'info', 'Twitter thread published.');
 }
 
-async function postFarcaster(baseDir: string, text: string) {
+async function postFarcasterThread(baseDir: string, thread: string[]) {
   const apiKey = process.env.NEYNAR_API_KEY;
   const signer = process.env.NEYNAR_SIGNER_UUID;
   if (!apiKey || !signer) {
@@ -90,23 +107,53 @@ async function postFarcaster(baseDir: string, text: string) {
     return;
   }
 
-  const res = await fetch('https://api.neynar.com/v2/farcaster/cast/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey
-    },
-    body: JSON.stringify({
-      signer_uuid: signer,
-      text
-    })
-  });
-
-  if (!res.ok) {
-    const error = await res.text();
-    await log(baseDir, 'warn', `Farcaster broadcast failed: ${error}`);
+  if (!thread.length) {
+    await log(baseDir, 'warn', 'Farcaster broadcast skipped: empty thread.');
     return;
   }
 
-  await log(baseDir, 'info', 'Farcaster cast published.');
+  let parentHash: string | null = null;
+  let parentFid: number | null = null;
+
+  for (const text of thread) {
+    const body: Record<string, unknown> = {
+      signer_uuid: signer,
+      text
+    };
+    if (parentHash && parentFid) {
+      body.parent = parentHash;
+      body.parent_author_fid = parentFid;
+    }
+
+    const res = await fetch('https://api.neynar.com/v2/farcaster/cast/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const error = await res.text();
+      await log(baseDir, 'warn', `Farcaster broadcast failed: ${error}`);
+      return;
+    }
+
+    const data = await res.json().catch(() => null) as {
+      cast?: { hash?: string; author?: { fid?: number } };
+    } | null;
+
+    const castHash = data?.cast?.hash;
+    const castFid = data?.cast?.author?.fid;
+    if (!castHash || !castFid) {
+      await log(baseDir, 'warn', 'Farcaster broadcast failed: missing cast hash or fid.');
+      return;
+    }
+
+    parentHash = castHash;
+    parentFid = castFid;
+  }
+
+  await log(baseDir, 'info', 'Farcaster thread published.');
 }

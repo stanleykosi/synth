@@ -1410,7 +1410,7 @@ export async function runDailyCycle(
     drops.unshift(dropRecord);
     await saveDrops(baseDir, drops);
 
-    let social: { thread: string[]; farcaster: string } | null = null;
+    let social: { thread: string[]; farcaster: string; farcasterThread?: string[] } | null = null;
     try {
       social = await broadcastDrop({
         baseDir,

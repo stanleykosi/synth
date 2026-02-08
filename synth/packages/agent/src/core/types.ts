@@ -23,6 +23,8 @@ export interface TrendPostRecord {
   createdAt: string;
   twitter: string;
   farcaster: string;
+  twitterThread?: string[];
+  farcasterThread?: string[];
   trendKeys: string[];
 }
 

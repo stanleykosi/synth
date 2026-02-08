@@ -10,10 +10,20 @@ import { runLlmTask } from './llm-runner.js';
 const schema = {
   type: 'object',
   properties: {
-    twitter: { type: 'string' },
-    farcaster: { type: 'string' }
+    twitterThread: {
+      type: 'array',
+      items: { type: 'string' },
+      minItems: 4,
+      maxItems: 8
+    },
+    farcasterThread: {
+      type: 'array',
+      items: { type: 'string' },
+      minItems: 4,
+      maxItems: 8
+    }
   },
-  required: ['twitter', 'farcaster'],
+  required: ['twitterThread', 'farcasterThread'],
   additionalProperties: false
 };
 
@@ -50,6 +60,33 @@ function truncateToLimit(text: string, limit: number): string {
   return trimmed.replace(/\s+\S*$/, '').trim();
 }
 
+function normalizeThread(lines: string[], limit: number, maxItems: number): string[] {
+  return lines
+    .filter((line) => typeof line === 'string' && line.trim().length > 0)
+    .map((line) => truncateToLimit(sanitizePost(line), limit))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function buildFallbackThread(trends: TrendPoolEntry[]): string[] {
+  const summaries = trends.map((trend) => cleanSummary(trend.summary)).filter(Boolean);
+  const top = summaries.slice(0, 4);
+  const lines: string[] = [];
+
+  lines.push(`SYNTH trend pulse: ${top[0] ?? 'Multiple signals converging across Base + crypto infra.'}`);
+  if (top[1]) lines.push(`Signal 2: ${top[1]}`);
+  if (top[2]) lines.push(`Signal 3: ${top[2]}`);
+  if (top[3]) lines.push(`Signal 4: ${top[3]}`);
+  lines.push('Why it matters: the signal density is rising, and the overlap suggests a real demand shift, not noise.');
+  lines.push('We’re tracking it live and will turn the strongest thread into a shipped drop if the data holds.');
+
+  return lines;
+}
+
+function cleanSummary(text: string): string {
+  return text.replace(/\s+/g, ' ').replace(/[—–]/g, '-').trim();
+}
+
 function buildTrendPayload(trends: TrendPoolEntry[]) {
   return trends.map((trend) => ({
     summary: trend.summary,
@@ -69,16 +106,18 @@ function minutesSince(timestamp?: string): number | null {
 
 async function generateTrendPost(trends: TrendPoolEntry[], skills: string, context: string) {
   const model = process.env.SYNTH_LLM_MODEL ?? 'openrouter/anthropic/claude-3.5-haiku';
-  const maxTokens = process.env.SYNTH_LLM_MAX_TOKENS ? Number(process.env.SYNTH_LLM_MAX_TOKENS) : 600;
+  const maxTokens = process.env.SYNTH_LLM_MAX_TOKENS ? Number(process.env.SYNTH_LLM_MAX_TOKENS) : 1200;
 
   const prompt = [
-    'You are SYNTH, writing a single social post about trends you observed.',
-    'Write as a real human analyst: clear, concise, grounded.',
+    'You are SYNTH, writing a trend analysis thread.',
+    'Write like a real human analyst blended with the SYNTH soul: technical, candid, signal-first.',
+    'Be verbose, grounded, and specific to the trends provided.',
     'No hashtags. No em dashes. No timestamps. No hype.',
-    'Summarize the most important patterns across the trends below.',
-    'Return JSON only with two fields: twitter and farcaster.',
-    'Both posts must be under 280 characters and share the same analytical point, but with slightly different phrasing.',
-    'Do not repeat the exact same sentence in both.'
+    'Return JSON only with two fields: twitterThread and farcasterThread.',
+    'Twitter thread: 4-8 posts, each <= 280 characters, 1-2 sentences each.',
+    'Farcaster thread: 4-8 casts, each <= 320 characters, as detailed as Twitter.',
+    'Both threads should cover the same analysis, but vary phrasing and structure.',
+    'Do not repeat the exact same sentence across both threads.'
   ].join('\n');
 
   const payload = {
@@ -96,18 +135,18 @@ async function generateTrendPost(trends: TrendPoolEntry[], skills: string, conte
   try {
     const result = await runLlmTask<unknown>(payload);
     if (!result || typeof result !== 'object') return null;
-    const data = result as { twitter?: string; farcaster?: string };
-    if (!data.twitter || !data.farcaster) return null;
+    const data = result as { twitterThread?: string[]; farcasterThread?: string[] };
+    if (!Array.isArray(data.twitterThread) || !Array.isArray(data.farcasterThread)) return null;
     return {
-      twitter: data.twitter,
-      farcaster: data.farcaster
+      twitterThread: data.twitterThread,
+      farcasterThread: data.farcasterThread
     };
   } catch {
     return null;
   }
 }
 
-async function postTwitter(baseDir: string, text: string) {
+async function postTwitterThread(baseDir: string, thread: string[]) {
   const apiKey = process.env.TWITTER_API_KEY;
   const apiSecret = process.env.TWITTER_API_SECRET;
   const accessToken = process.env.TWITTER_ACCESS_TOKEN;
@@ -118,6 +157,11 @@ async function postTwitter(baseDir: string, text: string) {
     return;
   }
 
+  if (!thread.length) {
+    await log(baseDir, 'warn', 'Twitter trend post skipped: empty thread.');
+    return;
+  }
+
   const client = new TwitterApi({
     appKey: apiKey,
     appSecret: apiSecret,
@@ -125,11 +169,19 @@ async function postTwitter(baseDir: string, text: string) {
     accessSecret
   });
 
-  await client.v2.tweet({ text });
-  await log(baseDir, 'info', 'Trend post published to Twitter.');
+  let replyTo: string | undefined;
+  for (const tweet of thread) {
+    const res = await client.v2.tweet({
+      text: tweet,
+      reply: replyTo ? { in_reply_to_tweet_id: replyTo } : undefined
+    });
+    replyTo = res.data.id;
+  }
+
+  await log(baseDir, 'info', 'Trend thread published to Twitter.');
 }
 
-async function postFarcaster(baseDir: string, text: string) {
+async function postFarcasterThread(baseDir: string, thread: string[]) {
   const apiKey = process.env.NEYNAR_API_KEY;
   const signer = process.env.NEYNAR_SIGNER_UUID;
   if (!apiKey || !signer) {
@@ -137,25 +189,55 @@ async function postFarcaster(baseDir: string, text: string) {
     return;
   }
 
-  const res = await fetch('https://api.neynar.com/v2/farcaster/cast/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey
-    },
-    body: JSON.stringify({
-      signer_uuid: signer,
-      text
-    })
-  });
-
-  if (!res.ok) {
-    const error = await res.text();
-    await log(baseDir, 'warn', `Farcaster trend post failed: ${error}`);
+  if (!thread.length) {
+    await log(baseDir, 'warn', 'Farcaster trend post skipped: empty thread.');
     return;
   }
 
-  await log(baseDir, 'info', 'Trend post published to Farcaster.');
+  let parentHash: string | null = null;
+  let parentFid: number | null = null;
+
+  for (const text of thread) {
+    const body: Record<string, unknown> = {
+      signer_uuid: signer,
+      text
+    };
+    if (parentHash && parentFid) {
+      body.parent = parentHash;
+      body.parent_author_fid = parentFid;
+    }
+
+    const res = await fetch('https://api.neynar.com/v2/farcaster/cast/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const error = await res.text();
+      await log(baseDir, 'warn', `Farcaster trend post failed: ${error}`);
+      return;
+    }
+
+    const data = await res.json().catch(() => null) as {
+      cast?: { hash?: string; author?: { fid?: number } };
+    } | null;
+
+    const castHash = data?.cast?.hash;
+    const castFid = data?.cast?.author?.fid;
+    if (!castHash || !castFid) {
+      await log(baseDir, 'warn', 'Farcaster trend post failed: missing cast hash or fid.');
+      return;
+    }
+
+    parentHash = castHash;
+    parentFid = castFid;
+  }
+
+  await log(baseDir, 'info', 'Trend thread published to Farcaster.');
 }
 
 export async function runTrendPost(baseDir: string, options?: { force?: boolean }) {
@@ -201,32 +283,44 @@ export async function runTrendPost(baseDir: string, options?: { force?: boolean 
     const context = await buildAgentContext(baseDir);
     const generated = await generateTrendPost(selected, skills, context);
     if (!generated) {
-      await log(baseDir, 'warn', 'Trend post generation failed.');
-      return;
+      await log(baseDir, 'warn', 'Trend post generation failed. Using fallback copy.');
+    }
+    const fallbackRaw = buildFallbackThread(selected);
+    const fallbackTwitter = normalizeThread(fallbackRaw, 280, 8);
+    const fallbackFarcaster = normalizeThread(fallbackRaw, 320, 8);
+
+    let twitterThread = normalizeThread(
+      generated?.twitterThread ?? fallbackRaw,
+      280,
+      8
+    );
+    if (twitterThread.length < 4) {
+      twitterThread = fallbackTwitter;
     }
 
-    let twitter = sanitizePost(generated.twitter);
-    let farcaster = sanitizePost(generated.farcaster);
-
-    twitter = truncateToLimit(twitter, 280);
-    farcaster = truncateToLimit(farcaster, 280);
-
-    if (!twitter || !farcaster) {
-      await log(baseDir, 'warn', 'Trend post skipped: empty content after sanitization.');
-      return;
+    let farcasterThread = normalizeThread(
+      generated?.farcasterThread ?? twitterThread,
+      320,
+      8
+    );
+    if (farcasterThread.length < 4) {
+      farcasterThread = normalizeThread(twitterThread, 320, 8);
+    }
+    if (farcasterThread.length < 4) {
+      farcasterThread = fallbackFarcaster;
     }
 
-    if (twitter === farcaster) {
-      const suffix = 'Worth watching how this evolves.';
-      farcaster = truncateToLimit(`${farcaster} ${suffix}`, 280);
+    if (twitterThread.length < 4 || farcasterThread.length < 4) {
+      await log(baseDir, 'warn', 'Trend post skipped: thread content too short after sanitization.');
+      return;
     }
 
     await Promise.all([
-      postTwitter(baseDir, twitter).catch(async (error) => {
+      postTwitterThread(baseDir, twitterThread).catch(async (error) => {
         const message = error instanceof Error ? error.message : String(error);
         await log(baseDir, 'warn', `Twitter trend post failed: ${message}`);
       }),
-      postFarcaster(baseDir, farcaster).catch(async (error) => {
+      postFarcasterThread(baseDir, farcasterThread).catch(async (error) => {
         const message = error instanceof Error ? error.message : String(error);
         await log(baseDir, 'warn', `Farcaster trend post failed: ${message}`);
       })
@@ -235,8 +329,10 @@ export async function runTrendPost(baseDir: string, options?: { force?: boolean 
     const record: TrendPostRecord = {
       id: `trend-post-${Date.now()}`,
       createdAt: new Date().toISOString(),
-      twitter,
-      farcaster,
+      twitter: twitterThread[0],
+      farcaster: farcasterThread[0],
+      twitterThread,
+      farcasterThread,
       trendKeys: selected.map((trend) => trend.key)
     };
     posts.unshift(record);
