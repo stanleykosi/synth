@@ -826,6 +826,8 @@ export async function runDailyCycle(
     let vercelProjectUrl: string | undefined;
     let vercelDeploymentState: string | undefined;
     let vercelDeploymentError: string | undefined;
+    let vercelAppName: string | undefined;
+    let tempDir: string | undefined;
 
     const isMainnet = requiresContract && mainnetSucceeded;
     const explorerUrl = isMainnet
@@ -880,7 +882,7 @@ export async function runDailyCycle(
     };
     const effectiveContent = content ?? fallbackContent;
     const repoAbout = effectiveContent.about ?? description;
-    const vercelAppName = repo.name;
+    vercelAppName = repo.name;
 
     if (repoOwner && process.env.VERCEL_TOKEN) {
       const repoSlug = `${repoOwner}/${repo.name}`;
@@ -905,73 +907,6 @@ export async function runDailyCycle(
       await log(baseDir, 'warn', 'Skipping Vercel project: missing VERCEL_TOKEN.');
     }
 
-    const codegenMode = (process.env.SYNTH_CODEGEN_MODE ?? 'llm').toLowerCase();
-    const generatedFiles = codegenMode === 'off' ? null : await generateRepoFiles({
-      dropType,
-      contractType,
-      appMode,
-      dropName,
-      symbol,
-      description,
-      tagline,
-      hero,
-      cta,
-      features,
-      rationale,
-      trend: topSignal,
-      network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
-      chain: 'Base',
-      chainId,
-      contractAddress: mainnetAddress,
-      explorerUrl,
-      repoUrl: repo.htmlUrl,
-      webappUrl: vercelProjectUrl,
-      rpcUrl,
-      skills: contentSkills,
-      context: llmContext
-    });
-
-    if (codegenMode !== 'off' && (!generatedFiles || generatedFiles.length === 0)) {
-      await log(baseDir, 'warn', 'LLM codegen failed or empty. Falling back to base template.');
-    }
-
-    const tempDir = await prepareRepoTemplate({
-      baseDir,
-      repoName: repo.name,
-      dropName,
-      description,
-      tagline,
-      hero,
-      cta,
-      features,
-      symbol,
-      dropType,
-      contractType,
-      appMode,
-      hasContract: requiresContract,
-      rationale,
-      contractAddress: requiresContract ? mainnetAddress : '',
-      chain: 'Base',
-      network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
-      explorerUrl,
-      rpcUrl,
-      chainId,
-      about: repoAbout,
-      repoUrl: repo.htmlUrl,
-      webappUrl: vercelProjectUrl
-    }, generatedFiles ?? undefined);
-
-    if (content?.readme) {
-      const patched = ensureReadmeLinks(content.readme, [
-        { label: 'Repo', url: repo.htmlUrl },
-        { label: 'Web', url: vercelProjectUrl ?? '' },
-        { label: 'Explorer', url: explorerUrl }
-      ]);
-      await fs.writeFile(path.join(tempDir, 'README.md'), `${patched.trim()}\n`);
-    }
-
-    await initAndPushRepo(tempDir, repo.cloneUrl, token, effectiveContent.commitMessage);
-
     const deployAttemptsRaw = process.env.SYNTH_VERCEL_DEPLOY_RETRIES
       ? Number(process.env.SYNTH_VERCEL_DEPLOY_RETRIES)
       : 2;
@@ -985,149 +920,280 @@ export async function runDailyCycle(
       : 600000;
     const pollTimeoutMs = Number.isFinite(pollTimeoutRaw) && pollTimeoutRaw > 0 ? pollTimeoutRaw : 600000;
 
-    if (vercelProjectUrl && repoOwner) {
-
-      for (let attempt = 1; attempt <= deployAttempts; attempt += 1) {
-        try {
-          const deployment = await createVercelDeployment({
-            projectName: vercelAppName,
-            repo: repo.name,
-            org: repoOwner,
-            ref: 'main',
-            target: 'production'
-          });
-          await log(baseDir, 'info', `Vercel deployment started: ${deployment.id}`);
-
-          const startedAt = Date.now();
-          let state = deployment.readyState || deployment.status || '';
-          let finalUrl = deployment.url;
-          while (Date.now() - startedAt < pollTimeoutMs) {
-            await sleep(pollIntervalMs);
-            const latest = await getVercelDeployment(deployment.id);
-            state = latest.readyState || latest.status || state;
-            finalUrl = latest.url || finalUrl;
-            if (state === 'ERROR' && latest.errorMessage) {
-              vercelDeploymentError = latest.errorMessage;
-              await log(baseDir, 'warn', `Vercel deployment error: ${latest.errorMessage}`);
-            }
-            if (state && ['READY', 'ERROR', 'CANCELED'].includes(state)) {
-              break;
-            }
-          }
-
-          vercelDeploymentState = state;
-          if (state === 'READY') {
-            if (finalUrl) {
-              vercelProjectUrl = finalUrl;
-            }
-            await log(baseDir, 'info', `Vercel deployment ready: ${finalUrl ?? vercelProjectUrl ?? 'unknown url'}`);
-            break;
-          }
-
-          await log(baseDir, 'warn', `Vercel deployment attempt ${attempt} ended with state "${state}".`);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          await log(baseDir, 'warn', `Vercel deployment attempt ${attempt} failed: ${message}`);
-        }
-      }
-    } else if (vercelProjectUrl && !repoOwner) {
-      await log(baseDir, 'warn', 'Skipping Vercel deployment trigger: missing repo owner.');
-    }
-
     const repairAttemptsRaw = process.env.SYNTH_REPAIR_ATTEMPTS
       ? Number(process.env.SYNTH_REPAIR_ATTEMPTS)
       : 0;
     const repairAttempts = Number.isFinite(repairAttemptsRaw) && repairAttemptsRaw > 0 ? repairAttemptsRaw : 0;
 
-    if (repairAttempts > 0 && vercelProjectUrl && repoOwner && vercelDeploymentState && vercelDeploymentState !== 'READY') {
-      const repoFiles = await listRepoFiles(tempDir);
-      for (let attempt = 1; attempt <= repairAttempts; attempt += 1) {
-        const errorMessage = vercelDeploymentError
-          ? `Vercel error: ${vercelDeploymentError}`
-          : `Vercel deployment ended with state "${vercelDeploymentState}".`;
-        const repairFiles = await generateRepairFiles({
-          dropType,
-          contractType,
-          appMode,
-          dropName,
-          symbol,
-          description,
-          tagline,
-          hero,
-          cta,
-          features,
-          rationale,
-          trend: topSignal,
-          network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
-          chain: 'Base',
-          chainId,
-          contractAddress: requiresContract ? mainnetAddress : '',
-          explorerUrl,
-          repoUrl: repo.htmlUrl,
-          webappUrl: vercelProjectUrl,
-          rpcUrl,
-          errorMessage,
-          repoFiles,
-          skills: contentSkills,
-          context: llmContext
-        });
-
-        if (!repairFiles || repairFiles.length === 0) {
-          await log(baseDir, 'warn', `Repair attempt ${attempt} produced no files.`);
-          break;
+    const attemptRepair = async (reason: string): Promise<boolean> => {
+      if (repairAttempts <= 0) return false;
+      try {
+        if (!tempDir || !repo) {
+          await log(baseDir, 'warn', 'Repair skipped: missing repo context.');
+          return false;
         }
 
-        const applied = await applyRepairFiles(tempDir, repairFiles);
-        if (applied === 0) {
-          await log(baseDir, 'warn', `Repair attempt ${attempt} produced no applicable changes.`);
-          break;
+        if (!vercelProjectUrl && process.env.VERCEL_TOKEN && repoOwner) {
+          try {
+            const project = await createVercelProject({
+              name: vercelAppName ?? repo.name,
+              repo: `${repoOwner}/${repo.name}`
+            });
+            vercelProjectUrl = project.url;
+            await log(baseDir, 'info', `Vercel project created during repair: ${project.url}`);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            await log(baseDir, 'warn', `Repair: failed to create Vercel project: ${message}`);
+          }
+        } else if (!vercelProjectUrl && !repoOwner) {
+          await log(baseDir, 'warn', 'Repair: missing repo owner for Vercel project creation.');
         }
 
-        const committed = await commitAndPushChanges(tempDir, `Repair build (${attempt})`);
-        if (!committed) {
-          await log(baseDir, 'warn', `Repair attempt ${attempt} had no git changes to push.`);
-          break;
-        }
-
-        try {
-          const deployment = await createVercelDeployment({
-            projectName: vercelAppName,
-            repo: repo.name,
-            org: repoOwner,
-            ref: 'main',
-            target: 'production'
+        const repoFiles = await listRepoFiles(tempDir);
+        for (let attempt = 1; attempt <= repairAttempts; attempt += 1) {
+          const repairFiles = await generateRepairFiles({
+            dropType,
+            contractType,
+            appMode,
+            dropName,
+            symbol,
+            description,
+            tagline,
+            hero,
+            cta,
+            features,
+            rationale,
+            trend: topSignal,
+            network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
+            chain: 'Base',
+            chainId,
+            contractAddress: requiresContract ? mainnetAddress : '',
+            explorerUrl,
+            repoUrl: repo.htmlUrl,
+            webappUrl: vercelProjectUrl,
+            rpcUrl,
+            errorMessage: reason,
+            repoFiles,
+            skills: contentSkills,
+            context: llmContext
           });
-          await log(baseDir, 'info', `Repair deployment started: ${deployment.id}`);
 
-          const startedAt = Date.now();
-          let state = deployment.readyState || deployment.status || '';
-          let finalUrl = deployment.url;
-          while (Date.now() - startedAt < pollTimeoutMs) {
-            await sleep(pollIntervalMs);
-            const latest = await getVercelDeployment(deployment.id);
-            state = latest.readyState || latest.status || state;
-            finalUrl = latest.url || finalUrl;
-            if (state === 'ERROR' && latest.errorMessage) {
-              vercelDeploymentError = latest.errorMessage;
-              await log(baseDir, 'warn', `Vercel repair error: ${latest.errorMessage}`);
+          if (!repairFiles || repairFiles.length === 0) {
+            await log(baseDir, 'warn', `Repair attempt ${attempt} produced no files.`);
+            return false;
+          }
+
+          let applied = 0;
+          try {
+            applied = await applyRepairFiles(tempDir, repairFiles);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            await log(baseDir, 'warn', `Repair attempt ${attempt} failed to apply files: ${message}`);
+            return false;
+          }
+          if (applied === 0) {
+            await log(baseDir, 'warn', `Repair attempt ${attempt} produced no applicable changes.`);
+            return false;
+          }
+
+          let committed = false;
+          try {
+            committed = await commitAndPushChanges(tempDir, `Repair build (${attempt})`);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            await log(baseDir, 'warn', `Repair attempt ${attempt} failed to push changes: ${message}`);
+            return false;
+          }
+          if (!committed) {
+            await log(baseDir, 'warn', `Repair attempt ${attempt} had no git changes to push.`);
+            return false;
+          }
+
+          if (!vercelProjectUrl || !repoOwner) {
+            await log(baseDir, 'info', 'Repair applied and pushed. Skipping Vercel deployment trigger.');
+            return true;
+          }
+
+          try {
+            const deployment = await createVercelDeployment({
+              projectName: vercelAppName ?? repo.name,
+              repo: repo.name,
+              org: repoOwner,
+              ref: 'main',
+              target: 'production'
+            });
+            await log(baseDir, 'info', `Repair deployment started: ${deployment.id}`);
+
+            const startedAt = Date.now();
+            let state = deployment.readyState || deployment.status || '';
+            let finalUrl = deployment.url;
+            while (Date.now() - startedAt < pollTimeoutMs) {
+              await sleep(pollIntervalMs);
+              const latest = await getVercelDeployment(deployment.id);
+              state = latest.readyState || latest.status || state;
+              finalUrl = latest.url || finalUrl;
+              if (state === 'ERROR' && latest.errorMessage) {
+                await log(baseDir, 'warn', `Vercel repair error: ${latest.errorMessage}`);
+              }
+              if (state && ['READY', 'ERROR', 'CANCELED'].includes(state)) {
+                break;
+              }
             }
-            if (state && ['READY', 'ERROR', 'CANCELED'].includes(state)) {
+
+            vercelDeploymentState = state;
+            if (state === 'READY') {
+              if (finalUrl) {
+                vercelProjectUrl = finalUrl;
+              }
+              await log(baseDir, 'info', `Repair deployment ready: ${finalUrl ?? vercelProjectUrl ?? 'unknown url'}`);
+              return true;
+            }
+
+            await log(baseDir, 'warn', `Repair deployment attempt ${attempt} ended with state "${state}".`);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            await log(baseDir, 'warn', `Repair deployment attempt ${attempt} failed: ${message}`);
+          }
+        }
+
+        return false;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await log(baseDir, 'warn', `Repair failed: ${message}`);
+        return false;
+      }
+    };
+
+    try {
+      const codegenMode = (process.env.SYNTH_CODEGEN_MODE ?? 'llm').toLowerCase();
+      const generatedFiles = codegenMode === 'off' ? null : await generateRepoFiles({
+        dropType,
+        contractType,
+        appMode,
+        dropName,
+        symbol,
+        description,
+        tagline,
+        hero,
+        cta,
+        features,
+        rationale,
+        trend: topSignal,
+        network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
+        chain: 'Base',
+        chainId,
+        contractAddress: mainnetAddress,
+        explorerUrl,
+        repoUrl: repo.htmlUrl,
+        webappUrl: vercelProjectUrl,
+        rpcUrl,
+        skills: contentSkills,
+        context: llmContext
+      });
+
+      if (codegenMode !== 'off' && (!generatedFiles || generatedFiles.length === 0)) {
+        await log(baseDir, 'warn', 'LLM codegen failed or empty. Falling back to base template.');
+      }
+
+      tempDir = await prepareRepoTemplate({
+        baseDir,
+        repoName: repo.name,
+        dropName,
+        description,
+        tagline,
+        hero,
+        cta,
+        features,
+        symbol,
+        dropType,
+        contractType,
+        appMode,
+        hasContract: requiresContract,
+        rationale,
+        contractAddress: requiresContract ? mainnetAddress : '',
+        chain: 'Base',
+        network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
+        explorerUrl,
+        rpcUrl,
+        chainId,
+        about: repoAbout,
+        repoUrl: repo.htmlUrl,
+        webappUrl: vercelProjectUrl
+      }, generatedFiles ?? undefined);
+
+      if (content?.readme) {
+        const patched = ensureReadmeLinks(content.readme, [
+          { label: 'Repo', url: repo.htmlUrl },
+          { label: 'Web', url: vercelProjectUrl ?? '' },
+          { label: 'Explorer', url: explorerUrl }
+        ]);
+        await fs.writeFile(path.join(tempDir, 'README.md'), `${patched.trim()}\n`);
+      }
+
+      await initAndPushRepo(tempDir, repo.cloneUrl, token, effectiveContent.commitMessage);
+
+      if (vercelProjectUrl && repoOwner) {
+        for (let attempt = 1; attempt <= deployAttempts; attempt += 1) {
+          try {
+            const deployment = await createVercelDeployment({
+              projectName: vercelAppName ?? repo.name,
+              repo: repo.name,
+              org: repoOwner,
+              ref: 'main',
+              target: 'production'
+            });
+            await log(baseDir, 'info', `Vercel deployment started: ${deployment.id}`);
+
+            const startedAt = Date.now();
+            let state = deployment.readyState || deployment.status || '';
+            let finalUrl = deployment.url;
+            while (Date.now() - startedAt < pollTimeoutMs) {
+              await sleep(pollIntervalMs);
+              const latest = await getVercelDeployment(deployment.id);
+              state = latest.readyState || latest.status || state;
+              finalUrl = latest.url || finalUrl;
+              if (state === 'ERROR' && latest.errorMessage) {
+                vercelDeploymentError = latest.errorMessage;
+                await log(baseDir, 'warn', `Vercel deployment error: ${latest.errorMessage}`);
+              }
+              if (state && ['READY', 'ERROR', 'CANCELED'].includes(state)) {
+                break;
+              }
+            }
+
+            vercelDeploymentState = state;
+            if (state === 'READY') {
+              if (finalUrl) {
+                vercelProjectUrl = finalUrl;
+              }
+              await log(baseDir, 'info', `Vercel deployment ready: ${finalUrl ?? vercelProjectUrl ?? 'unknown url'}`);
               break;
             }
+
+            await log(baseDir, 'warn', `Vercel deployment attempt ${attempt} ended with state "${state}".`);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            await log(baseDir, 'warn', `Vercel deployment attempt ${attempt} failed: ${message}`);
           }
-          vercelDeploymentState = state;
-          if (state === 'READY') {
-            if (finalUrl) {
-              vercelProjectUrl = finalUrl;
-            }
-            await log(baseDir, 'info', `Repair deployment ready: ${finalUrl ?? vercelProjectUrl ?? 'unknown url'}`);
-            break;
-          }
-          await log(baseDir, 'warn', `Repair deployment attempt ${attempt} ended with state "${state}".`);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          await log(baseDir, 'warn', `Repair deployment attempt ${attempt} failed: ${message}`);
         }
+      } else if (vercelProjectUrl && !repoOwner) {
+        await log(baseDir, 'warn', 'Skipping Vercel deployment trigger: missing repo owner.');
+      }
+
+      if (vercelProjectUrl && repoOwner && vercelDeploymentState && vercelDeploymentState !== 'READY') {
+        const reason = vercelDeploymentError
+          ? `Vercel error: ${vercelDeploymentError}`
+          : `Vercel deployment ended with state "${vercelDeploymentState}".`;
+        const repaired = await attemptRepair(reason);
+        if (!repaired) {
+          await log(baseDir, 'warn', 'Vercel deployment failed after repair attempts.');
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const repaired = await attemptRepair(message);
+      if (!repaired) {
+        throw error;
       }
     }
 
