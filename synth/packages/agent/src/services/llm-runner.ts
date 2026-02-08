@@ -110,6 +110,30 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
   }
 }
 
+function stripProviderPrefix(model: string): string {
+  if (model.startsWith('openrouter/')) return model.slice('openrouter/'.length);
+  if (model.startsWith('nvidia/')) return model.slice('nvidia/'.length);
+  return model;
+}
+
+function resolveNvidiaModels(model: string): string[] {
+  const override = process.env.SYNTH_NVIDIA_MODEL;
+  if (override) return [override];
+
+  const cleaned = stripProviderPrefix(model);
+  const candidates = new Set<string>();
+  candidates.add(cleaned);
+
+  if (cleaned.includes('kimi-k2.5')) {
+    candidates.add(cleaned.replace('kimi-k2.5', 'kimi-k2-5'));
+  }
+  if (cleaned.includes('kimi-k2-5')) {
+    candidates.add(cleaned.replace('kimi-k2-5', 'kimi-k2.5'));
+  }
+
+  return Array.from(candidates);
+}
+
 async function runOpenRouterTask<T>(payload: LlmTaskPayload): Promise<T> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -155,10 +179,93 @@ async function runOpenRouterTask<T>(payload: LlmTaskPayload): Promise<T> {
   return parsed as T;
 }
 
+async function runNvidiaTask<T>(payload: LlmTaskPayload): Promise<T> {
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing NVIDIA_API_KEY');
+  }
+
+  const baseUrl = (process.env.NVIDIA_API_BASE_URL ?? 'https://integrate.api.nvidia.com/v1')
+    .replace(/\/+$/, '');
+  const url = `${baseUrl}/chat/completions`;
+
+  const schemaBlock = payload.schema ? `\nJSON schema:\n${JSON.stringify(payload.schema)}` : '';
+  const system = `${payload.prompt}\nReturn JSON only.${schemaBlock}`;
+  const user = JSON.stringify(payload.input);
+  const modelCandidates = resolveNvidiaModels(payload.model);
+
+  let lastError: Error | null = null;
+
+  for (const model of modelCandidates) {
+    const response = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user }
+        ],
+        temperature: 0.2,
+        top_p: 1,
+        max_tokens: payload.maxTokens,
+        stream: false
+      })
+    }, 30000);
+
+    if (!response.ok) {
+      const text = await response.text();
+      const error = new Error(`NVIDIA HTTP ${response.status}: ${text.slice(0, 200)}`);
+      lastError = error;
+      if (response.status === 400 || response.status === 404) {
+        continue;
+      }
+      throw error;
+    }
+
+    const data = await response.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = data.choices?.[0]?.message?.content ?? '';
+    const parsed = extractJson(content);
+    if (!parsed) {
+      throw new Error('NVIDIA response was not valid JSON');
+    }
+    return parsed as T;
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+  throw new Error('NVIDIA request failed with no candidates.');
+}
+
 export async function runLlmTask<T>(payload: LlmTaskPayload): Promise<T> {
   try {
     return await runOpenClawAgent<T>(payload);
-  } catch {
-    return await runOpenRouterTask<T>(payload);
+  } catch (openClawError) {
+    const hasOpenRouter = Boolean(process.env.OPENROUTER_API_KEY);
+    const hasNvidia = Boolean(process.env.NVIDIA_API_KEY);
+
+    if (hasOpenRouter) {
+      try {
+        return await runOpenRouterTask<T>(payload);
+      } catch (openRouterError) {
+        if (hasNvidia) {
+          return await runNvidiaTask<T>(payload);
+        }
+        throw openRouterError;
+      }
+    }
+
+    if (hasNvidia) {
+      return await runNvidiaTask<T>(payload);
+    }
+
+    throw openClawError;
   }
 }
