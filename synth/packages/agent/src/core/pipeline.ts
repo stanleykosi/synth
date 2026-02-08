@@ -14,7 +14,7 @@ import { fetchSuggestionSignals } from '../sources/suggestions.js';
 import { fetchGraphSignals } from '../sources/graph.js';
 import { runForge, parseDeployedAddress, readBroadcastGasInfo } from '../services/foundry.js';
 import { ensureRepo, updateRepoDescription } from '../services/github.js';
-import { prepareRepoTemplate, initAndPushRepo } from '../services/repo.js';
+import { prepareRepoTemplate, initAndPushRepo, commitAndPushChanges } from '../services/repo.js';
 import { generateRepoFiles } from '../services/codegen.js';
 import { createVercelProject, createVercelDeployment, getVercelDeployment } from '../services/vercel.js';
 import { broadcastDrop } from '../services/broadcast.js';
@@ -27,6 +27,7 @@ import { generateDropContent } from '../services/content.js';
 import { markSuggestionReviewed } from '../services/chain.js';
 import { saveArtifacts } from '../services/artifacts.js';
 import { appendTrendPool, loadTrendPoolWindow, sortTrendEntries } from '../services/trend-pool.js';
+import { applyRepairFiles, generateRepairFiles, listRepoFiles } from '../services/repair.js';
 
 function nowIso() {
   return new Date().toISOString();
@@ -823,6 +824,8 @@ export async function runDailyCycle(
     const repoOwner = parseRepoOwner(repo.htmlUrl) ?? (process.env.GITHUB_ORG ?? '');
 
     let vercelProjectUrl: string | undefined;
+    let vercelDeploymentState: string | undefined;
+    let vercelDeploymentError: string | undefined;
 
     const isMainnet = requiresContract && mainnetSucceeded;
     const explorerUrl = isMainnet
@@ -969,19 +972,20 @@ export async function runDailyCycle(
 
     await initAndPushRepo(tempDir, repo.cloneUrl, token, effectiveContent.commitMessage);
 
+    const deployAttemptsRaw = process.env.SYNTH_VERCEL_DEPLOY_RETRIES
+      ? Number(process.env.SYNTH_VERCEL_DEPLOY_RETRIES)
+      : 2;
+    const deployAttempts = Number.isFinite(deployAttemptsRaw) && deployAttemptsRaw > 0 ? deployAttemptsRaw : 2;
+    const pollIntervalRaw = process.env.SYNTH_VERCEL_POLL_INTERVAL_MS
+      ? Number(process.env.SYNTH_VERCEL_POLL_INTERVAL_MS)
+      : 5000;
+    const pollIntervalMs = Number.isFinite(pollIntervalRaw) && pollIntervalRaw > 0 ? pollIntervalRaw : 5000;
+    const pollTimeoutRaw = process.env.SYNTH_VERCEL_POLL_TIMEOUT_MS
+      ? Number(process.env.SYNTH_VERCEL_POLL_TIMEOUT_MS)
+      : 600000;
+    const pollTimeoutMs = Number.isFinite(pollTimeoutRaw) && pollTimeoutRaw > 0 ? pollTimeoutRaw : 600000;
+
     if (vercelProjectUrl && repoOwner) {
-      const deployAttemptsRaw = process.env.SYNTH_VERCEL_DEPLOY_RETRIES
-        ? Number(process.env.SYNTH_VERCEL_DEPLOY_RETRIES)
-        : 2;
-      const deployAttempts = Number.isFinite(deployAttemptsRaw) && deployAttemptsRaw > 0 ? deployAttemptsRaw : 2;
-      const pollIntervalRaw = process.env.SYNTH_VERCEL_POLL_INTERVAL_MS
-        ? Number(process.env.SYNTH_VERCEL_POLL_INTERVAL_MS)
-        : 5000;
-      const pollIntervalMs = Number.isFinite(pollIntervalRaw) && pollIntervalRaw > 0 ? pollIntervalRaw : 5000;
-      const pollTimeoutRaw = process.env.SYNTH_VERCEL_POLL_TIMEOUT_MS
-        ? Number(process.env.SYNTH_VERCEL_POLL_TIMEOUT_MS)
-        : 600000;
-      const pollTimeoutMs = Number.isFinite(pollTimeoutRaw) && pollTimeoutRaw > 0 ? pollTimeoutRaw : 600000;
 
       for (let attempt = 1; attempt <= deployAttempts; attempt += 1) {
         try {
@@ -1003,6 +1007,7 @@ export async function runDailyCycle(
             state = latest.readyState || latest.status || state;
             finalUrl = latest.url || finalUrl;
             if (state === 'ERROR' && latest.errorMessage) {
+              vercelDeploymentError = latest.errorMessage;
               await log(baseDir, 'warn', `Vercel deployment error: ${latest.errorMessage}`);
             }
             if (state && ['READY', 'ERROR', 'CANCELED'].includes(state)) {
@@ -1010,6 +1015,7 @@ export async function runDailyCycle(
             }
           }
 
+          vercelDeploymentState = state;
           if (state === 'READY') {
             if (finalUrl) {
               vercelProjectUrl = finalUrl;
@@ -1026,6 +1032,103 @@ export async function runDailyCycle(
       }
     } else if (vercelProjectUrl && !repoOwner) {
       await log(baseDir, 'warn', 'Skipping Vercel deployment trigger: missing repo owner.');
+    }
+
+    const repairAttemptsRaw = process.env.SYNTH_REPAIR_ATTEMPTS
+      ? Number(process.env.SYNTH_REPAIR_ATTEMPTS)
+      : 0;
+    const repairAttempts = Number.isFinite(repairAttemptsRaw) && repairAttemptsRaw > 0 ? repairAttemptsRaw : 0;
+
+    if (repairAttempts > 0 && vercelProjectUrl && repoOwner && vercelDeploymentState && vercelDeploymentState !== 'READY') {
+      const repoFiles = await listRepoFiles(tempDir);
+      for (let attempt = 1; attempt <= repairAttempts; attempt += 1) {
+        const errorMessage = vercelDeploymentError
+          ? `Vercel error: ${vercelDeploymentError}`
+          : `Vercel deployment ended with state "${vercelDeploymentState}".`;
+        const repairFiles = await generateRepairFiles({
+          dropType,
+          contractType,
+          appMode,
+          dropName,
+          symbol,
+          description,
+          tagline,
+          hero,
+          cta,
+          features,
+          rationale,
+          trend: topSignal,
+          network: isMainnet ? 'Base Mainnet' : 'Base Sepolia',
+          chain: 'Base',
+          chainId,
+          contractAddress: requiresContract ? mainnetAddress : '',
+          explorerUrl,
+          repoUrl: repo.htmlUrl,
+          webappUrl: vercelProjectUrl,
+          rpcUrl,
+          errorMessage,
+          repoFiles,
+          skills: contentSkills,
+          context: llmContext
+        });
+
+        if (!repairFiles || repairFiles.length === 0) {
+          await log(baseDir, 'warn', `Repair attempt ${attempt} produced no files.`);
+          break;
+        }
+
+        const applied = await applyRepairFiles(tempDir, repairFiles);
+        if (applied === 0) {
+          await log(baseDir, 'warn', `Repair attempt ${attempt} produced no applicable changes.`);
+          break;
+        }
+
+        const committed = await commitAndPushChanges(tempDir, `Repair build (${attempt})`);
+        if (!committed) {
+          await log(baseDir, 'warn', `Repair attempt ${attempt} had no git changes to push.`);
+          break;
+        }
+
+        try {
+          const deployment = await createVercelDeployment({
+            projectName: vercelAppName,
+            repo: repo.name,
+            org: repoOwner,
+            ref: 'main',
+            target: 'production'
+          });
+          await log(baseDir, 'info', `Repair deployment started: ${deployment.id}`);
+
+          const startedAt = Date.now();
+          let state = deployment.readyState || deployment.status || '';
+          let finalUrl = deployment.url;
+          while (Date.now() - startedAt < pollTimeoutMs) {
+            await sleep(pollIntervalMs);
+            const latest = await getVercelDeployment(deployment.id);
+            state = latest.readyState || latest.status || state;
+            finalUrl = latest.url || finalUrl;
+            if (state === 'ERROR' && latest.errorMessage) {
+              vercelDeploymentError = latest.errorMessage;
+              await log(baseDir, 'warn', `Vercel repair error: ${latest.errorMessage}`);
+            }
+            if (state && ['READY', 'ERROR', 'CANCELED'].includes(state)) {
+              break;
+            }
+          }
+          vercelDeploymentState = state;
+          if (state === 'READY') {
+            if (finalUrl) {
+              vercelProjectUrl = finalUrl;
+            }
+            await log(baseDir, 'info', `Repair deployment ready: ${finalUrl ?? vercelProjectUrl ?? 'unknown url'}`);
+            break;
+          }
+          await log(baseDir, 'warn', `Repair deployment attempt ${attempt} ended with state "${state}".`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          await log(baseDir, 'warn', `Repair deployment attempt ${attempt} failed: ${message}`);
+        }
+      }
     }
 
     if (repoOwner && repoAbout) {

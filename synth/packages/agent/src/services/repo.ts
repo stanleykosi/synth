@@ -179,3 +179,18 @@ export async function initAndPushRepo(
     }
   }
 }
+
+export async function commitAndPushChanges(
+  repoDir: string,
+  commitMessage = 'Repair build'
+) {
+  const git = simpleGit(repoDir);
+  const status = await git.status();
+  if (status.isClean()) {
+    return false;
+  }
+  await git.add('.');
+  await git.commit(commitMessage);
+  await git.push('origin', 'main');
+  return true;
+}

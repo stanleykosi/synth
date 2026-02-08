@@ -1,8 +1,17 @@
 .page {
-  display: grid;
-  gap: var(--space-lg);
+  padding: var(--space-2xl) 0;
+}
+
+.page h1 {
+  font-size: 2.5rem;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-sm);
+  color: var(--text-primary);
 }
 
 .description {
-  color: var(--text-muted);
+  color: var(--text-secondary);
+  font-size: 1.125rem;
+  margin-bottom: var(--space-2xl);
+  max-width: 600px;
 }

@@ -1,3 +1,27 @@
+.connectBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: var(--text-primary);
+  color: var(--bg-secondary);
+  border: 1px solid #000;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: 2px 2px 0px #000;
+}
+
+.connectBtn:hover {
+  background: var(--accent-primary);
+  border-color: #000;
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px #000;
+}
+
 .connected {
   display: inline-flex;
   align-items: center;
@@ -6,11 +30,12 @@
   font-family: var(--font-mono);
   font-size: 0.875rem;
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid #000;
   border-radius: var(--radius-md);
   color: var(--text-primary);
   cursor: pointer;
   transition: all var(--transition-fast);
+  box-shadow: 2px 2px 0px #000;
 }
 
 .connected:hover {
@@ -22,7 +47,6 @@
   height: 8px;
   background: var(--accent-primary);
   border-radius: 50%;
-  box-shadow: 0 0 8px var(--accent-primary);
 }
 
 .address {
