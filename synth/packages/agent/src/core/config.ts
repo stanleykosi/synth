@@ -145,7 +145,7 @@ const fallbackConfig: AgentConfig = {
   pipeline: {
     maxSignals: 50,
     dailyRunHourUTC: 9,
-    autoDeployMainnet: false,
+    autoDeployMainnet: true,
     minCycleHours: 24
   }
 };

@@ -14,10 +14,7 @@ contract SynthERC721 is ERC721URIStorage, Ownable {
     /// @param name_ Token name
     /// @param symbol_ Token symbol
     /// @param owner_ Initial owner
-    constructor(string memory name_, string memory symbol_, address owner_)
-        ERC721(name_, symbol_)
-        Ownable(owner_)
-    {}
+    constructor(string memory name_, string memory symbol_, address owner_) ERC721(name_, symbol_) Ownable(owner_) {}
 
     /// @notice Mint a new token to a recipient with a token URI
     /// @param to Recipient address

@@ -8,6 +8,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 /// @notice Collects and ranks onchain suggestions by stake
 contract SynthSuggestions is Ownable, ReentrancyGuard {
     uint256 public constant MIN_STAKE = 0.001 ether;
+    uint256 public constant MAX_TOP_SUGGESTIONS = 50;
 
     struct Suggestion {
         uint256 id;
@@ -59,6 +60,7 @@ contract SynthSuggestions is Ownable, ReentrancyGuard {
         require(id < suggestions.length, "Invalid suggestion");
         Suggestion storage s = suggestions[id];
         require(!s.reviewed, "Already reviewed");
+        require(s.stake > 0, "Stake already returned");
 
         s.reviewed = true;
         s.built = wasBuilt;
@@ -66,7 +68,7 @@ contract SynthSuggestions is Ownable, ReentrancyGuard {
         uint256 amount = s.stake;
         s.stake = 0;
 
-        (bool success, ) = payable(s.submitter).call{value: amount}("");
+        (bool success,) = payable(s.submitter).call{value: amount}("");
         require(success, "Transfer failed");
 
         emit SuggestionReviewed(id, wasBuilt);
@@ -85,6 +87,11 @@ contract SynthSuggestions is Ownable, ReentrancyGuard {
     /// @param limit Max results
     /// @return Array of suggestions
     function getTopSuggestions(uint256 limit) external view returns (Suggestion[] memory) {
+        if (limit == 0) {
+            return new Suggestion[](0);
+        }
+        require(limit <= MAX_TOP_SUGGESTIONS, "Limit too high");
+
         uint256 pending = 0;
         for (uint256 i = 0; i < suggestions.length; i++) {
             if (!suggestions[i].reviewed) pending++;
@@ -101,17 +108,22 @@ contract SynthSuggestions is Ownable, ReentrancyGuard {
             }
         }
 
-        for (uint256 i = 0; i < indices.length; i++) {
-            for (uint256 j = i + 1; j < indices.length; j++) {
-                if (suggestions[indices[j]].stake > suggestions[indices[i]].stake) {
-                    uint256 temp = indices[i];
-                    indices[i] = indices[j];
-                    indices[j] = temp;
+        // Partial selection sort: only top `count` results.
+        for (uint256 i = 0; i < count; i++) {
+            uint256 best = i;
+            uint256 bestStake = suggestions[indices[i]].stake;
+            for (uint256 j = i + 1; j < pending; j++) {
+                uint256 stake = suggestions[indices[j]].stake;
+                if (stake > bestStake) {
+                    best = j;
+                    bestStake = stake;
                 }
             }
-        }
-
-        for (uint256 i = 0; i < count; i++) {
+            if (best != i) {
+                uint256 temp = indices[i];
+                indices[i] = indices[best];
+                indices[best] = temp;
+            }
             result[i] = suggestions[indices[i]];
         }
 
@@ -133,7 +145,12 @@ contract SynthSuggestions is Ownable, ReentrancyGuard {
 
     /// @notice Withdraw contract balance in emergency
     function emergencyWithdraw() external onlyOwner {
-        (bool success, ) = payable(owner()).call{value: address(this).balance}("");
+        for (uint256 i = 0; i < suggestions.length; i++) {
+            if (!suggestions[i].reviewed) {
+                revert("Pending suggestions");
+            }
+        }
+        (bool success,) = payable(owner()).call{value: address(this).balance}("");
         require(success, "Transfer failed");
     }
 }

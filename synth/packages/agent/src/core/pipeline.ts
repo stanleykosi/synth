@@ -876,7 +876,12 @@ export async function runDailyCycle(
       });
 
       mainnetAddress = sepoliaAddress;
-      if (config.pipeline.autoDeployMainnet && process.env.BASE_RPC) {
+      const envAutoDeploy = process.env.SYNTH_AUTO_DEPLOY_MAINNET;
+      const autoDeployMainnet = envAutoDeploy !== undefined
+        ? envAutoDeploy.toLowerCase() === 'true'
+        : config.pipeline.autoDeployMainnet;
+
+      if (autoDeployMainnet && process.env.BASE_RPC) {
         const mainnetResult = await deployWithForge({
           baseDir,
           script: scriptName,
